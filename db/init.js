@@ -90,16 +90,19 @@ async function initDB() {
   `);
 
   // --- Migrations for upgrading from older schema ---
+  // Uses plain ALTER TABLE (compatible with MySQL 5.7+), catches duplicate column errors
   const migrations = [
-    "ALTER TABLE manuscripts ADD COLUMN IF NOT EXISTS is_pinned TINYINT(1) NOT NULL DEFAULT 0 AFTER is_featured",
-    "ALTER TABLE manuscripts ADD COLUMN IF NOT EXISTS is_editor_pick TINYINT(1) NOT NULL DEFAULT 0 AFTER is_pinned",
-    "ALTER TABLE manuscripts ADD COLUMN IF NOT EXISTS is_trending TINYINT(1) NOT NULL DEFAULT 0 AFTER is_editor_pick",
-    "ALTER TABLE manuscripts ADD COLUMN IF NOT EXISTS tags VARCHAR(500) DEFAULT '' AFTER is_trending",
-    "ALTER TABLE manuscripts ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0 AFTER tags",
-    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'admin' AFTER password_hash",
+    "ALTER TABLE manuscripts ADD COLUMN is_pinned TINYINT(1) NOT NULL DEFAULT 0 AFTER is_featured",
+    "ALTER TABLE manuscripts ADD COLUMN is_editor_pick TINYINT(1) NOT NULL DEFAULT 0 AFTER is_pinned",
+    "ALTER TABLE manuscripts ADD COLUMN is_trending TINYINT(1) NOT NULL DEFAULT 0 AFTER is_editor_pick",
+    "ALTER TABLE manuscripts ADD COLUMN tags VARCHAR(500) DEFAULT '' AFTER is_trending",
+    "ALTER TABLE manuscripts ADD COLUMN view_count INT NOT NULL DEFAULT 0 AFTER tags",
+    "ALTER TABLE admins ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin' AFTER password_hash",
   ];
   for (const sql of migrations) {
-    try { await pool.query(sql); } catch (e) { /* column already exists */ }
+    try { await pool.query(sql); } catch (e) {
+      if (e.errno !== 1060) console.error('[DB Migration]', e.message);
+    }
   }
 
   // --- Seed admin ---
