@@ -1,0 +1,159 @@
+<%- include('partials/head', { pageTitle: '' }) %>
+<%- include('partials/nav') %>
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div class="hero-content">
+    <p class="hero-issue">ISSUE 001 · 创刊号 · 2026年春</p>
+    <div class="hero-rule"></div>
+    <h1 class="hero-title">负 结 果 通 讯</h1>
+    <p class="hero-subtitle">Negative Results Review</p>
+    <p class="hero-subtitle-alt">Archive of Failed Methods</p>
+    <div class="hero-rule"></div>
+    <blockquote class="hero-quote">"不是所有研究都能成功，但都值得被记录。"</blockquote>
+    <a href="#latest" class="hero-cta">进入档案室 ↓</a>
+  </div>
+  <div class="hero-meta">
+    <span>非正式学术交流与电子选刊平台</span>
+    <span>Est. 2026</span>
+  </div>
+</section>
+
+<!-- § 01 关于本刊 -->
+<section class="section" id="about-brief">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-number">§ 01</span>
+      <h2 class="section-title">关于本刊</h2>
+      <span class="section-en">ABOUT THIS PUBLICATION</span>
+    </div>
+    <div class="intro-content fade-in">
+      <p>《负结果通讯》是一个非正式学术交流与电子选刊平台，致力于记录科研过程中那些不被看见的部分——失败的实验、被拒的论文、无法复现的结果，以及研究者真实的困惑与反思。</p>
+      <p>我们相信，负结果不等于无价值。每一次失败的尝试，都是知识的边界被真实触碰的证据。</p>
+      <p class="intro-note">声明：本平台不属于正式学术期刊，不用于职称评审或成果认定。仅作为研究经历分享、失败方法归档与学术文化展示的空间。</p>
+    </div>
+  </div>
+</section>
+
+<!-- § 02 栏目 -->
+<section class="section section--alt" id="columns">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-number">§ 02</span>
+      <h2 class="section-title">栏目</h2>
+      <span class="section-en">COLUMNS</span>
+    </div>
+    <div class="columns-grid">
+      <% var colData = [
+        {idx:'COL.01',name:'负结果档案',desc:'那些统计不显著但依然有意义的发现'},
+        {idx:'COL.02',name:'废稿回收站',desc:'被拒、被弃、被遗忘的文字重见天日'},
+        {idx:'COL.03',name:'方法翻车实录',desc:'看起来完美的方案，做起来一地鸡毛'},
+        {idx:'COL.04',name:'Reviewer 鬼话档案',desc:'审稿意见中的不可能任务与逻辑黑洞'},
+        {idx:'COL.05',name:'选题尸检报告',desc:'复盘那些胎死腹中的研究构想'},
+        {idx:'COL.06',name:'学术情绪标本室',desc:'科研过程中的真实情绪与心理记录'},
+      ]; colData.forEach(function(c) { %>
+      <a href="/archive?section=<%= encodeURIComponent(c.name) %>" class="col-card fade-in" data-index="<%= c.idx %>">
+        <h3 class="col-card__title"><%= c.name %></h3>
+        <p class="col-card__desc"><%= c.desc %></p>
+        <span class="col-card__arrow">浏览归档 →</span>
+      </a>
+      <% }) %>
+      <a href="/archive?section=<%= encodeURIComponent('年度学术垃圾奖') %>" class="col-card col-card--wide fade-in" data-index="COL.07">
+        <h3 class="col-card__title">年度学术垃圾奖</h3>
+        <p class="col-card__desc">以温和的黑色幽默，致敬学术生活的荒诞</p>
+        <span class="col-card__arrow">浏览归档 →</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- § 03 本期专题 -->
+<section class="section" id="featured">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-number">§ 03</span>
+      <h2 class="section-title">本期专题</h2>
+      <span class="section-en">SPECIAL ISSUE</span>
+    </div>
+    <div class="featured-box fade-in">
+      <p class="featured-label">Vol. 1 · No. 1 · 专题策划</p>
+      <h3 class="featured-title">当 p 值卡在 0.05 的边缘</h3>
+      <p class="featured-desc">探讨统计显著性的边界焦虑：那些差一点就"有意义"的研究结果。</p>
+      <% if (featured.length > 0) { %>
+      <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border)">
+        <% featured.forEach(function(a) { %>
+        <a href="/article/<%= a.id %>" style="display:block;margin-bottom:.6rem;font-family:var(--font-serif);font-size:.88rem;color:var(--text-sec);transition:color .2s">
+          <span style="color:var(--accent);margin-right:.5rem">◆</span><%= a.title %>
+        </a>
+        <% }) %>
+      </div>
+      <% } %>
+      <p class="featured-meta">Archive Ref: NRR-SI-001 · 2026年3月</p>
+    </div>
+  </div>
+</section>
+
+<!-- § 04 最新入选 -->
+<section class="section section--alt" id="latest">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-number">§ 04</span>
+      <h2 class="section-title">最新入选</h2>
+      <span class="section-en">RECENT ARCHIVES</span>
+    </div>
+    <% if (articles.length > 0) { %>
+    <div class="article-list fade-in">
+      <% articles.forEach(function(a, i) { %>
+      <a href="/article/<%= a.id %>" class="article-item">
+        <span class="article-index"><%= String(i+1).padStart(2,'0') %></span>
+        <div>
+          <h3 class="article-title"><%= a.title %></h3>
+          <div class="article-tags-row"><%- include('partials/tags', {a: a}) %></div>
+        </div>
+        <div class="article-meta-side">
+          <span class="article-column"><%= a.section %></span>
+          <span class="article-date"><%= a.published_at ? a.published_at.substring(0,10).replace(/-/g,'.') : '' %></span>
+        </div>
+      </a>
+      <% }) %>
+    </div>
+    <% } else { %>
+    <p style="color:var(--text-light);font-size:.88rem;padding:2rem 0">暂无已发布稿件。</p>
+    <% } %>
+    <div style="text-align:center;margin-top:2rem">
+      <a href="/archive" style="font-size:.82rem;letter-spacing:.08em;color:var(--accent);border:1px solid var(--accent);padding:.5rem 1.5rem;border-radius:2px;transition:all .2s">查看完整归档 →</a>
+    </div>
+  </div>
+</section>
+
+<!-- § 05 编辑原则 -->
+<section class="section" id="principles">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-number">§ 05</span>
+      <h2 class="section-title">编辑原则</h2>
+      <span class="section-en">EDITORIAL PRINCIPLES</span>
+    </div>
+    <div class="principles-grid fade-in">
+      <div class="principle-item"><span class="principle-num">01</span><p class="principle-text"><strong>真实优先</strong>——鼓励如实记录，不鼓励虚构或夸张。</p></div>
+      <div class="principle-item"><span class="principle-num">02</span><p class="principle-text"><strong>匿名保护</strong>——所有投稿均可匿名，编辑部承诺脱敏处理。</p></div>
+      <div class="principle-item"><span class="principle-num">03</span><p class="principle-text"><strong>善意批评</strong>——不攻击个人，只讨论现象与系统。</p></div>
+      <div class="principle-item"><span class="principle-num">04</span><p class="principle-text"><strong>学术伦理</strong>——不泄露未发表数据，不侵犯知识产权。</p></div>
+      <div class="principle-item"><span class="principle-num">05</span><p class="principle-text"><strong>非正式声明</strong>——所有内容仅代表投稿者个人经历与观点。</p></div>
+      <div class="principle-item"><span class="principle-num">06</span><p class="principle-text"><strong>开放存档</strong>——入选内容将长期公开存档。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section section--dark" id="submit-cta">
+  <div class="container">
+    <div class="cta-content fade-in">
+      <h2>你也有一个"负结果"想说吗？</h2>
+      <p>无论是一段失败的实验记录、一篇被拒的稿件、还是一句审稿人让你哭笑不得的意见——如果你觉得它值得被记录，我们愿意倾听。</p>
+      <a href="/submit" class="btn-primary">前往投稿 →</a>
+    </div>
+  </div>
+</section>
+
+<%- include('partials/footer') %>

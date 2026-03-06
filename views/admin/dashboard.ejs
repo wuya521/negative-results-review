@@ -1,0 +1,70 @@
+<%- include('partials/head', { pageTitle: '仪表盘' }) %>
+<body>
+<div class="layout">
+<%- include('partials/sidebar', { active: 'dashboard', stats: stats, admin: admin }) %>
+<div class="main">
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
+      <span class="topbar-issue">ISSUE 001</span>
+      <span class="topbar-status"><span class="dot"></span>编辑部运行中</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-stat"><div class="num"><%= todayCount %></div><div class="label">今日新稿</div></div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-stat"><div class="num"><%= stats.pending %></div><div class="label">待审</div></div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-stat"><div class="num"><%= stats.published %></div><div class="label">已发布</div></div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-stat"><div class="num"><%= stats.total %></div><div class="label">总计</div></div>
+    </div>
+  </header>
+
+  <div class="content">
+    <div class="summary-row">
+      <div class="summary-card accent"><div class="val"><%= stats.pending %></div><div class="lbl">待审稿件</div></div>
+      <div class="summary-card"><div class="val"><%= stats.under_review + stats.revision %></div><div class="lbl">审核/退修中</div></div>
+      <div class="summary-card"><div class="val"><%= stats.accepted %></div><div class="lbl">已录用待发布</div></div>
+      <div class="summary-card"><div class="val"><%= stats.published %></div><div class="lbl">已发布</div></div>
+    </div>
+
+    <div class="sec-header">
+      <h2>最新投稿</h2>
+      <span class="tag">Recent Submissions</span>
+    </div>
+
+    <div class="ms-list">
+      <div class="ms-head">
+        <span>#</span><span>标题</span><span>栏目</span><span>状态</span><span>日期</span><span>风险</span>
+      </div>
+      <% if (recent.length === 0) { %>
+      <div class="empty-state"><div class="icon">◇</div>暂无稿件</div>
+      <% } else { %>
+      <% recent.forEach(function(m, i) { %>
+      <a href="/admin/manuscripts/<%= m.id %>" class="ms-item" style="text-decoration:none;color:inherit">
+        <span class="ms-idx"><%= String(i+1).padStart(2,'0') %></span>
+        <span class="ms-title"><%= m.title %></span>
+        <span class="ms-col"><%= m.section %></span>
+        <span class="badge badge-<%= m.status %>"><%= statusLabel(m.status) %></span>
+        <span class="ms-date"><%= m.created_at.substring(0,10) %></span>
+        <span class="ms-risk <%= m.risk_level %>"></span>
+      </a>
+      <% }) %>
+      <% } %>
+    </div>
+
+    <div style="margin-top:1.5rem;text-align:center">
+      <a href="/admin/manuscripts" style="font-size:.8rem;color:var(--accent);letter-spacing:.06em">查看全部稿件 →</a>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
+if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}
+if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
+</script>
+</body>
+</html>

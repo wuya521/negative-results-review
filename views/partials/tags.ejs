@@ -1,0 +1,8 @@
+<%
+var _a = typeof a !== 'undefined' ? a : (typeof article !== 'undefined' ? article : {});
+%>
+<% if (_a.is_pinned) { %><span class="tag-badge tag-pinned">置顶</span><% } %>
+<% if (_a.is_editor_pick) { %><span class="tag-badge tag-editor-pick">编辑推荐</span><% } %>
+<% if (_a.is_trending) { %><span class="tag-badge tag-trending">加热中</span><% } %>
+<% if (_a.is_featured) { %><span class="tag-badge tag-featured">精选</span><% } %>
+<% if (_a.tags) { parseTags(_a.tags).forEach(function(t, i) { %><span class="tag-badge tag-custom" data-idx="<%= i % 5 %>"><%= t %></span><% }) } %>

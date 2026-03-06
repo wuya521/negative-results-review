@@ -1,0 +1,100 @@
+<%- include('partials/head', { pageTitle: '稿件追踪' }) %>
+<%- include('partials/nav') %>
+
+<header class="page-header">
+  <div class="container">
+    <p class="page-header__label">Track / 追踪</p>
+    <h1 class="page-header__title">稿件状态查询</h1>
+    <p class="page-header__sub">输入投稿时获得的稿件编号，查询当前审核进度。</p>
+  </div>
+</header>
+
+<main class="section">
+  <div class="container" style="max-width:640px">
+
+    <form method="POST" action="/track" style="display:flex;gap:.6rem;margin-bottom:2rem">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <input class="form-input" type="text" name="submission_no" placeholder="例：NRR-2026-001" value="<%= query %>" required style="flex:1">
+      <button class="btn-submit" type="submit" style="white-space:nowrap">查询</button>
+    </form>
+
+    <% if (typeof error !== 'undefined' && error) { %>
+    <div style="background:#FDF0ED;border-left:3px solid #8B2500;padding:1rem 1.5rem;margin-bottom:2rem;font-size:.85rem;color:#8B2500">
+      <%= error %>
+    </div>
+    <% } %>
+
+    <% if (result) { %>
+    <div style="background:var(--bg);border:1px solid var(--border);padding:2rem;margin-bottom:2rem">
+      <div style="font-family:var(--font-mono);font-size:.68rem;letter-spacing:.12em;color:var(--text-light);margin-bottom:.6rem"><%= result.no %></div>
+      <h2 style="font-family:var(--font-serif);font-size:1.2rem;font-weight:700;letter-spacing:.03em;margin-bottom:1.2rem"><%= result.title %></h2>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:1rem 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:.62rem;letter-spacing:.08em;color:var(--text-light);text-transform:uppercase;font-family:var(--font-mono)">栏目</div>
+          <div style="font-size:.85rem;margin-top:.2rem"><%= result.section %></div>
+        </div>
+        <div>
+          <div style="font-size:.62rem;letter-spacing:.08em;color:var(--text-light);text-transform:uppercase;font-family:var(--font-mono)">当前状态</div>
+          <div style="font-size:.85rem;margin-top:.2rem">
+            <span class="tag-badge tag-status-<%= result.status %>"><%= result.statusText %></span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:.62rem;letter-spacing:.08em;color:var(--text-light);text-transform:uppercase;font-family:var(--font-mono)">投稿时间</div>
+          <div style="font-size:.82rem;font-family:var(--font-mono);margin-top:.2rem"><%= result.createdAt %></div>
+        </div>
+        <div>
+          <div style="font-size:.62rem;letter-spacing:.08em;color:var(--text-light);text-transform:uppercase;font-family:var(--font-mono)">最后更新</div>
+          <div style="font-size:.82rem;font-family:var(--font-mono);margin-top:.2rem"><%= result.updatedAt %></div>
+        </div>
+        <% if (result.publishedAt) { %>
+        <div>
+          <div style="font-size:.62rem;letter-spacing:.08em;color:var(--text-light);text-transform:uppercase;font-family:var(--font-mono)">发布时间</div>
+          <div style="font-size:.82rem;font-family:var(--font-mono);margin-top:.2rem"><%= result.publishedAt %></div>
+        </div>
+        <% } %>
+      </div>
+
+      <% if (result.editorNote) { %>
+      <div style="margin-top:1.5rem;background:var(--bg-alt);border-left:3px solid var(--accent);padding:1rem 1.2rem">
+        <div style="font-family:var(--font-mono);font-size:.62rem;letter-spacing:.12em;color:var(--accent);text-transform:uppercase;margin-bottom:.4rem">编辑部退修意见</div>
+        <p style="font-size:.85rem;color:var(--text-sec);line-height:1.8"><%= result.editorNote %></p>
+      </div>
+      <% } %>
+
+      <!-- Status timeline -->
+      <div style="margin-top:1.5rem">
+        <div style="font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;color:var(--text-light);margin-bottom:.8rem">审核流程</div>
+        <div class="track-timeline">
+          <% var steps = ['pending','under_review','accepted','published'];
+             var stepLabels = {pending:'已收稿',under_review:'审核中',accepted:'已录用',published:'已发布'};
+             var current = steps.indexOf(result.status);
+             if (result.status === 'revision') current = 1;
+             if (result.status === 'rejected') current = -1;
+             if (result.status === 'archived') current = 4;
+          %>
+          <% steps.forEach(function(s, i) { %>
+          <div class="track-step <%= i <= current ? 'active' : '' %> <%= result.status === 'rejected' && i > 0 ? 'rejected' : '' %>">
+            <div class="track-dot"></div>
+            <div class="track-label"><%= stepLabels[s] %></div>
+          </div>
+          <% if (i < steps.length - 1) { %>
+          <div class="track-line <%= i < current ? 'active' : '' %>"></div>
+          <% } %>
+          <% }) %>
+        </div>
+        <% if (result.status === 'rejected') { %>
+        <p style="font-size:.78rem;color:var(--accent);margin-top:.8rem">稿件未通过审核。如有疑问，可重新投稿并注明原编号。</p>
+        <% } %>
+        <% if (result.status === 'revision') { %>
+        <p style="font-size:.78rem;color:#A68B09;margin-top:.8rem">稿件已退修，请根据编辑部意见修改后重新投稿并注明原编号。</p>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+
+  </div>
+</main>
+
+<%- include('partials/footer') %>

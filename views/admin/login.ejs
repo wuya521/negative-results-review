@@ -1,0 +1,26 @@
+<%- include('partials/head', { pageTitle: '登录' }) %>
+<body>
+<div class="login-page">
+  <div class="login-box">
+    <div class="login-brand">
+      <h1>负结果通讯</h1>
+      <p>Editorial Desk Login</p>
+    </div>
+    <% if (error) { %>
+    <div class="login-error"><%= error %></div>
+    <% } %>
+    <form method="POST" action="/admin/login">
+      <div class="login-field">
+        <label for="username">用户名</label>
+        <input type="text" id="username" name="username" required autocomplete="username">
+      </div>
+      <div class="login-field">
+        <label for="password">密码</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="login-btn">进入编辑部</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

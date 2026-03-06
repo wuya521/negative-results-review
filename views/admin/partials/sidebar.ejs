@@ -1,0 +1,28 @@
+<%
+  var _active = typeof active !== 'undefined' ? active : '';
+  var _stats  = typeof stats  !== 'undefined' ? stats  : {};
+%>
+<div class="mobile-overlay" id="mobileOverlay"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <h1>负结果通讯</h1>
+    <p>Editorial Desk</p>
+  </div>
+  <ul class="sidebar-nav">
+    <li class="sidebar-section">Overview</li>
+    <li><a href="/admin/dashboard" class="<%= _active==='dashboard'?'active':'' %>"><span class="nav-icon">◈</span>仪表盘</a></li>
+    <li class="sidebar-section">Manuscripts</li>
+    <li><a href="/admin/manuscripts?status=pending" class="<%= _active==='pending'?'active':'' %>"><span class="nav-icon">◇</span>待审稿件<span class="sidebar-count"><%= _stats.pending||0 %></span></a></li>
+    <li><a href="/admin/manuscripts" class="<%= _active==='all'?'active':'' %>"><span class="nav-icon">▪</span>全部稿件</a></li>
+    <li><a href="/admin/manuscripts?status=published" class="<%= _active==='published'?'active':'' %>"><span class="nav-icon">◆</span>已发布</a></li>
+    <li><a href="/admin/manuscripts?status=accepted" class="<%= _active==='accepted'?'active':'' %>"><span class="nav-icon">▸</span>已录用</a></li>
+    <li><a href="/admin/manuscripts?status=revision" class="<%= _active==='revision'?'active':'' %>"><span class="nav-icon">◁</span>退修</a></li>
+    <li class="sidebar-section">System</li>
+    <li><a href="/admin/password" class="<%= _active==='password'?'active':'' %>"><span class="nav-icon">⚿</span>修改密码</a></li>
+    <li><a href="/" target="_blank"><span class="nav-icon">↗</span>前台预览</a></li>
+    <li><a href="/admin/logout"><span class="nav-icon">⏏</span>退出登录</a></li>
+  </ul>
+  <div class="sidebar-footer">
+    <span>编辑：<%= typeof admin!=='undefined' && admin ? admin.username : '' %></span>
+  </div>
+</aside>

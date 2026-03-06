@@ -1,0 +1,175 @@
+<%- include('partials/head', { pageTitle: ms.title }) %>
+<body>
+<div class="layout">
+<%- include('partials/sidebar', { active: '', stats: stats, admin: admin }) %>
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
+      <span class="topbar-issue">ISSUE 001</span>
+      <span class="topbar-status"><span class="dot"></span>编辑部运行中</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-stat"><div class="num"><%= stats.pending %></div><div class="label">待审</div></div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-stat"><div class="num"><%= stats.total %></div><div class="label">总计</div></div>
+    </div>
+  </header>
+
+  <div class="content">
+    <a href="/admin/manuscripts" class="detail-back">← 返回稿件列表</a>
+
+    <!-- Header Card -->
+    <div class="detail-card">
+      <h1 class="detail-title"><%= ms.title %></h1>
+      <div class="detail-badges">
+        <span class="badge badge-<%= ms.status %>"><%= statusLabel(ms.status) %></span>
+        <span style="font-size:.68rem;color:var(--accent);border:1px solid var(--accent);padding:2px 8px;border-radius:1px"><%= ms.section %></span>
+        <% if (ms.is_pinned) { %><span class="tag-badge tag-pinned">置顶</span><% } %>
+        <% if (ms.is_editor_pick) { %><span class="tag-badge tag-editor-pick">编辑推荐</span><% } %>
+        <% if (ms.is_trending) { %><span class="tag-badge tag-trending">加热中</span><% } %>
+        <% if (ms.is_featured) { %><span class="tag-badge tag-featured">精选</span><% } %>
+        <span style="font-size:.68rem;padding:2px 8px;border-radius:1px;border:1px solid" class="<%= ms.desensitized_status==='passed'?'badge-accepted':ms.desensitized_status==='failed'?'badge-rejected':'badge-pending' %>">
+          脱敏：<%= ({unchecked:'未检查',passed:'已通过',failed:'未通过'})[ms.desensitized_status] %>
+        </span>
+      </div>
+
+      <div class="detail-meta">
+        <div class="meta-item"><div class="ml">Archive ID</div><div class="mv mono"><%= ms.submission_no %></div></div>
+        <div class="meta-item"><div class="ml">学科方向</div><div class="mv"><%= ms.discipline %></div></div>
+        <div class="meta-item"><div class="ml">署名方式</div><div class="mv"><%= ({anonymous:'匿名',pen_name:'笔名',real_name:'实名'})[ms.author_mode] %><%= ms.pen_name ? ' ('+ms.pen_name+')' : '' %></div></div>
+        <div class="meta-item"><div class="ml">风险等级</div><div class="mv"><span class="risk-dot <%= ms.risk_level %>"></span><%= riskLabel(ms.risk_level) %>风险</div></div>
+        <div class="meta-item"><div class="ml">投稿时间</div><div class="mv mono"><%= ms.created_at %></div></div>
+        <div class="meta-item"><div class="ml">更新时间</div><div class="mv mono"><%= ms.updated_at %></div></div>
+        <% if (ms.published_at) { %>
+        <div class="meta-item"><div class="ml">发布时间</div><div class="mv mono"><%= ms.published_at %></div></div>
+        <% } %>
+        <% if (ms.tags) { %>
+        <div class="meta-item"><div class="ml">标签</div><div class="mv"><% parseTags(ms.tags).forEach(function(t) { %><span class="tag-badge tag-custom" style="margin-right:.3rem"><%= t %></span><% }) %></div></div>
+        <% } %>
+      </div>
+
+      <% if (ms.risk_level === 'high') { %>
+      <div style="margin-top:1.2rem;background:var(--red-bg);border-left:3px solid var(--accent);padding:.8rem 1rem;font-size:.8rem;color:var(--accent)">
+        ⚠ 高风险稿件 — 请仔细审查是否涉及可识别个人信息、敏感数据或潜在侵权。
+      </div>
+      <% } %>
+    </div>
+
+    <!-- Content Preview -->
+    <div class="detail-card">
+      <div class="detail-section">
+        <div class="ds-label">正文预览</div>
+        <div class="detail-content"><%- formatContent(ms.content) %></div>
+      </div>
+      <% if (ms.value_note) { %>
+      <div class="detail-section" style="margin-top:1.2rem">
+        <div class="ds-label">投稿者价值说明</div>
+        <div class="detail-value"><%= ms.value_note %></div>
+      </div>
+      <% } %>
+    </div>
+
+    <!-- Content Editing -->
+    <form method="POST" action="/admin/manuscripts/<%= ms.id %>/content" class="edit-card">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <h3>编辑内容（用于脱敏修改）</h3>
+      <div class="edit-field" style="margin-bottom:1rem">
+        <label for="edit_title">标题</label>
+        <input type="text" name="title" id="edit_title" value="<%= ms.title %>" style="width:100%;padding:.5rem .8rem;border:1px solid var(--border);border-radius:2px;font-size:.88rem;background:#fff">
+      </div>
+      <div class="edit-note">
+        <label for="edit_content" style="display:block;font-size:.68rem;letter-spacing:.06em;color:var(--text-light);font-family:var(--font-mono);text-transform:uppercase;margin-bottom:.3rem">正文</label>
+        <textarea name="content" id="edit_content" style="min-height:160px"><%= ms.content %></textarea>
+      </div>
+      <button type="submit" class="btn-save">保存内容修改</button>
+    </form>
+
+    <!-- Metadata Editing -->
+    <form method="POST" action="/admin/manuscripts/<%= ms.id %>" class="edit-card">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <h3>审核信息与标签</h3>
+
+      <div class="edit-grid">
+        <div class="edit-field">
+          <label for="risk_level">风险等级</label>
+          <select name="risk_level" id="risk_level">
+            <option value="low" <%= ms.risk_level==='low'?'selected':'' %>>低 Low</option>
+            <option value="medium" <%= ms.risk_level==='medium'?'selected':'' %>>中 Medium</option>
+            <option value="high" <%= ms.risk_level==='high'?'selected':'' %>>高 High</option>
+          </select>
+        </div>
+        <div class="edit-field">
+          <label for="desensitized_status">脱敏状态</label>
+          <select name="desensitized_status" id="desensitized_status">
+            <option value="unchecked" <%= ms.desensitized_status==='unchecked'?'selected':'' %>>未检查</option>
+            <option value="passed" <%= ms.desensitized_status==='passed'?'selected':'' %>>已通过</option>
+            <option value="failed" <%= ms.desensitized_status==='failed'?'selected':'' %>>未通过</option>
+          </select>
+        </div>
+        <div class="edit-field">
+          <label for="tags">自定义标签</label>
+          <input type="text" name="tags" id="tags" value="<%= ms.tags || '' %>" placeholder="逗号分隔，如：选题,p值" style="width:100%;padding:.45rem .6rem;border:1px solid var(--border);border-radius:2px;font-size:.8rem;background:#fff">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin:1rem 0">
+        <label class="edit-check"><input type="checkbox" name="is_featured" value="1" <%= ms.is_featured?'checked':'' %>> 精选</label>
+        <label class="edit-check"><input type="checkbox" name="is_pinned" value="1" <%= ms.is_pinned?'checked':'' %>> 置顶</label>
+        <label class="edit-check"><input type="checkbox" name="is_editor_pick" value="1" <%= ms.is_editor_pick?'checked':'' %>> 编辑推荐</label>
+        <label class="edit-check"><input type="checkbox" name="is_trending" value="1" <%= ms.is_trending?'checked':'' %>> 加热中</label>
+      </div>
+
+      <div class="edit-note">
+        <label for="editor_note" style="display:block;font-size:.68rem;letter-spacing:.06em;color:var(--text-light);font-family:var(--font-mono);text-transform:uppercase;margin-bottom:.3rem">编辑备注（退修时此内容将对投稿者可见）</label>
+        <textarea name="editor_note" id="editor_note" placeholder="在此添加编辑备注…"><%= ms.editor_note || '' %></textarea>
+      </div>
+
+      <button type="submit" class="btn-save">保存审核信息</button>
+    </form>
+
+    <!-- Status Actions -->
+    <div class="status-card">
+      <h3>状态流转</h3>
+      <p>当前状态：<strong><%= statusLabel(ms.status) %></strong></p>
+      <div class="status-actions">
+        <% if (ms.status === 'pending') { %>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="under_review"><button type="submit" class="act-btn blue">标记为审核中</button></form>
+        <% } %>
+        <% if (['pending','under_review'].includes(ms.status)) { %>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="revision"><button type="submit" class="act-btn amber">退修</button></form>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="accepted"><button type="submit" class="act-btn green">录用</button></form>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="rejected"><button type="submit" class="act-btn danger">不录用</button></form>
+        <% } %>
+        <% if (ms.status === 'revision') { %>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="under_review"><button type="submit" class="act-btn blue">重新审核</button></form>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="accepted"><button type="submit" class="act-btn green">录用</button></form>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="rejected"><button type="submit" class="act-btn danger">不录用</button></form>
+        <% } %>
+        <% if (ms.status === 'accepted') { %>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="published"><button type="submit" class="act-btn primary">发布到前台</button></form>
+        <% } %>
+        <% if (ms.status === 'published') { %>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="archived"><button type="submit" class="act-btn">归档</button></form>
+        <% } %>
+        <% if (['rejected','archived'].includes(ms.status)) { %>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="pending"><button type="submit" class="act-btn">重置为待审</button></form>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script>
+var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
+if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}
+if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
+var msg='<%= msg || "" %>';
+if(msg){
+  var labels={saved:'修改已保存',content_saved:'内容已保存',content_empty:'标题和正文不能为空',status_pending:'已重置为待审',status_under_review:'已标记为审核中',status_revision:'已退修',status_accepted:'已录用',status_rejected:'已拒稿',status_published:'已发布到前台',status_archived:'已归档'};
+  var t=document.getElementById('toast');t.textContent=labels[msg]||msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},3500);
+}
+</script>
+</body></html>

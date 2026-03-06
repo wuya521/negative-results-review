@@ -1,0 +1,61 @@
+<%- include('partials/head', { pageTitle: article.title }) %>
+<%- include('partials/nav') %>
+
+<header class="page-header">
+  <div class="container">
+    <p class="page-header__label">Archive No. <%= article.submission_no %></p>
+    <h1 class="page-header__title">文章详情</h1>
+  </div>
+</header>
+
+<main class="section">
+  <div class="article-detail">
+    <a href="javascript:history.back()" class="article-detail__back">← 返回</a>
+
+    <header class="article-detail__header fade-in">
+      <span class="article-detail__column"><%= article.section %></span>
+      <h1 class="article-detail__title"><%= article.title %></h1>
+      <div class="article-tags-row" style="margin-bottom:1rem">
+        <%- include('partials/tags', { a: article }) %>
+      </div>
+      <div class="article-detail__meta">
+        <span>作者：<%= article.author_mode === 'anonymous' ? '匿名' : (article.pen_name || '匿名') %></span>
+        <span>日期：<%= article.published_at ? article.published_at.substring(0,10) : article.created_at.substring(0,10) %></span>
+        <span>编号：<%= article.submission_no %></span>
+        <span>学科：<%= article.discipline %></span>
+      </div>
+    </header>
+
+    <% if (article.editor_note) { %>
+    <div class="editor-note fade-in">
+      <p class="editor-note__label">编辑部短评</p>
+      <p><%= article.editor_note %></p>
+    </div>
+    <% } %>
+
+    <article class="article-body fade-in">
+      <%- formatContent(article.content) %>
+    </article>
+
+    <% if (article.value_note) { %>
+    <div style="margin-top:2rem;padding:1rem 1.2rem;background:var(--bg-alt);border:1px solid var(--border);border-radius:2px;font-size:.82rem;color:var(--text-sec);line-height:1.7" class="fade-in">
+      <span style="font-family:var(--font-mono);font-size:.65rem;letter-spacing:.1em;color:var(--text-light);text-transform:uppercase">投稿者价值说明</span><br>
+      <%= article.value_note %>
+    </div>
+    <% } %>
+
+    <div class="article-tags fade-in">
+      <span class="article-tag"><%= article.section %></span>
+      <span class="article-tag"><%= article.discipline %></span>
+      <% if (article.tags) { parseTags(article.tags).forEach(function(t) { %>
+      <span class="article-tag"><%= t %></span>
+      <% }) } %>
+    </div>
+
+    <div style="margin-top:2.5rem">
+      <a href="/archive" class="article-detail__back">← 浏览更多归档文章</a>
+    </div>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

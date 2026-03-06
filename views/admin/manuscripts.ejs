@@ -1,0 +1,105 @@
+<%- include('partials/head', { pageTitle: '稿件管理' }) %>
+<body>
+<div class="layout">
+<%- include('partials/sidebar', { active: filters.status || 'all', stats: stats, admin: admin }) %>
+<div class="main">
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
+      <span class="topbar-issue">ISSUE 001</span>
+      <span class="topbar-status"><span class="dot"></span>编辑部运行中</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-stat"><div class="num"><%= stats.pending %></div><div class="label">待审</div></div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-stat"><div class="num"><%= stats.total %></div><div class="label">总计</div></div>
+    </div>
+  </header>
+
+  <div class="content">
+    <div class="sec-header">
+      <h2><%= filters.status ? statusLabel(filters.status) + '稿件' : '全部稿件' %></h2>
+      <span class="tag"><%= manuscripts.length %> items</span>
+    </div>
+
+    <!-- Filters -->
+    <form method="GET" action="/admin/manuscripts" class="filter-bar">
+      <span class="filter-label">状态</span>
+      <select name="status" class="filter-select">
+        <option value="">全部</option>
+        <% statuses.forEach(function(s) { %>
+        <option value="<%= s %>" <%= filters.status===s?'selected':'' %>><%= statusLabel(s) %></option>
+        <% }) %>
+      </select>
+
+      <span class="filter-label">栏目</span>
+      <select name="section" class="filter-select">
+        <option value="">全部</option>
+        <% sections.forEach(function(s) { %>
+        <option value="<%= s %>" <%= filters.section===s?'selected':'' %>><%= s %></option>
+        <% }) %>
+      </select>
+
+      <span class="filter-label">风险</span>
+      <select name="risk" class="filter-select">
+        <option value="">全部</option>
+        <option value="low"    <%= filters.risk==='low'?'selected':'' %>>低</option>
+        <option value="medium" <%= filters.risk==='medium'?'selected':'' %>>中</option>
+        <option value="high"   <%= filters.risk==='high'?'selected':'' %>>高</option>
+      </select>
+
+      <span class="filter-label">排序</span>
+      <select name="sort" class="filter-select">
+        <option value="newest" <%= filters.sort==='newest'?'selected':'' %>>最新优先</option>
+        <option value="oldest" <%= filters.sort==='oldest'?'selected':'' %>>最早优先</option>
+        <option value="risk"   <%= filters.sort==='risk'?'selected':'' %>>风险优先</option>
+      </select>
+
+      <input type="text" name="q" class="filter-search" placeholder="搜索标题…" value="<%= filters.q || '' %>">
+      <button type="submit" class="filter-submit">筛选</button>
+      <a href="/admin/manuscripts" class="filter-reset">重置</a>
+    </form>
+
+    <!-- List -->
+    <div class="ms-list">
+      <div class="ms-head">
+        <span>#</span><span>标题</span><span>栏目</span><span>状态</span><span>日期</span><span>匿名</span><span>风险</span>
+      </div>
+      <% if (manuscripts.length === 0) { %>
+      <div class="empty-state"><div class="icon">◇</div>暂无匹配稿件</div>
+      <% } else { %>
+      <% manuscripts.forEach(function(m, i) { %>
+      <a href="/admin/manuscripts/<%= m.id %>" class="ms-item" style="text-decoration:none;color:inherit">
+        <span class="ms-idx"><%= String(i+1).padStart(2,'0') %></span>
+        <span class="ms-title" title="<%= m.title %>"><%= m.title %></span>
+        <span class="ms-col" title="<%= m.section %>"><%= m.section %></span>
+        <span class="badge badge-<%= m.status %>"><%= statusLabel(m.status) %></span>
+        <span class="ms-date"><%= m.created_at.substring(0,10) %></span>
+        <span class="ms-anon"><%= m.author_mode==='anonymous'?'匿名':'署名' %></span>
+        <span class="ms-risk <%= m.risk_level %>" title="<%= riskLabel(m.risk_level) %>风险"></span>
+      </a>
+      <% }) %>
+      <% } %>
+    </div>
+
+    <% if (totalPages > 1) { %>
+    <div class="pagination">
+      <% var qs=[]; if(filters.status)qs.push('status='+filters.status); if(filters.section)qs.push('section='+encodeURIComponent(filters.section)); if(filters.risk)qs.push('risk='+filters.risk); if(filters.q)qs.push('q='+encodeURIComponent(filters.q)); if(filters.sort)qs.push('sort='+filters.sort); var base='/admin/manuscripts?'+qs.join('&')+(qs.length?'&':''); %>
+      <% if (page > 1) { %><a href="<%= base %>page=<%= page-1 %>" class="page-link">← 上一页</a><% } %>
+      <span class="page-info"><%= page %> / <%= totalPages %></span>
+      <% if (page < totalPages) { %><a href="<%= base %>page=<%= page+1 %>" class="page-link">下一页 →</a><% } %>
+    </div>
+    <% } %>
+
+  </div>
+</div>
+</div>
+
+<script>
+var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
+if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}
+if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
+</script>
+</body>
+</html>

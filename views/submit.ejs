@@ -1,0 +1,138 @@
+<%- include('partials/head', { pageTitle: '投稿' }) %>
+<%- include('partials/nav') %>
+
+<header class="page-header">
+  <div class="container">
+    <p class="page-header__label">Submit / 投稿</p>
+    <h1 class="page-header__title">向编辑部投稿</h1>
+    <p class="page-header__sub">无论是失败的实验、被拒的论文、还是一段真实的科研情绪——如果你觉得它值得被记录，请在此提交。所有投稿均可匿名。</p>
+  </div>
+</header>
+
+<main class="section">
+  <div class="container">
+
+    <% if (typeof success !== 'undefined' && success) { %>
+    <div style="background:#EEF6EF;border:1px solid #C8E6C9;padding:1.8rem 2rem;margin-bottom:2rem;">
+      <h3 style="font-family:var(--font-serif);font-size:1.05rem;margin-bottom:.6rem;color:#2E7D32">投稿已成功提交</h3>
+      <p style="font-size:.88rem;color:#555;margin-bottom:.8rem">编辑部将在 7 个工作日内审阅。</p>
+      <% if (typeof submissionNo !== 'undefined' && submissionNo) { %>
+      <div style="background:#fff;border:1px solid #C8E6C9;padding:.8rem 1.2rem;display:inline-block;margin-bottom:.8rem">
+        <span style="font-size:.68rem;color:#9A9A9A;letter-spacing:.06em;display:block;margin-bottom:.2rem">你的稿件编号</span>
+        <span style="font-family:var(--font-mono);font-size:1.1rem;font-weight:700;letter-spacing:.08em;color:#1A1A1A"><%= submissionNo %></span>
+      </div>
+      <p style="font-size:.78rem;color:#888">请妥善保存此编号，可在 <a href="/track?no=<%= submissionNo %>" style="color:var(--accent);text-decoration:underline">稿件追踪</a> 页面查询审核进度。</p>
+      <% } %>
+    </div>
+    <% } %>
+
+    <% if (typeof error !== 'undefined' && error) { %>
+    <div style="background:#FDF0ED;border-left:3px solid #8B2500;padding:1rem 1.5rem;margin-bottom:2rem;font-size:.88rem;color:#8B2500"><%= error %></div>
+    <% } %>
+
+    <div class="form-wrapper">
+      <form class="form-main" method="POST" action="/submit">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+
+        <div class="form-group">
+          <label class="form-label" for="title">稿件标题 <span class="required">*</span></label>
+          <input class="form-input" type="text" id="title" name="title" placeholder="例：一种注定失败的选题是如何诞生的" required value="<%= typeof form!=='undefined' && form && form.title ? form.title : '' %>">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="discipline">学科方向 <span class="required">*</span></label>
+          <input class="form-input" type="text" id="discipline" name="discipline" placeholder="例：社会学 / 计算机科学 / 不便透露" required value="<%= typeof form!=='undefined' && form && form.discipline ? form.discipline : '' %>">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="section">投稿栏目 <span class="required">*</span></label>
+          <select class="form-select" id="section" name="section" required>
+            <option value="" disabled selected>请选择栏目</option>
+            <% sections.forEach(function(s) { %>
+            <option value="<%= s %>" <%= (typeof form!=='undefined' && form && form.section===s) ? 'selected' : '' %>><%= s %></option>
+            <% }) %>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="author_mode">署名方式</label>
+          <select class="form-select" id="author_mode" name="author_mode">
+            <option value="anonymous" selected>匿名发表</option>
+            <option value="pen_name">使用笔名</option>
+            <option value="real_name">使用真实姓名</option>
+          </select>
+          <span class="form-hint">选择匿名后，编辑部将对内容进行脱敏处理。</span>
+        </div>
+
+        <div class="form-group" id="penNameGroup" style="display:none">
+          <label class="form-label" for="pen_name">笔名 / 姓名</label>
+          <input class="form-input" type="text" id="pen_name" name="pen_name" placeholder="请输入你希望显示的名称">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="content">正文内容 <span class="required">*</span></label>
+          <textarea class="form-textarea" id="content" name="content" placeholder="请在此输入你的稿件正文。建议 500–3000 字。" required><%= typeof form!=='undefined' && form && form.content ? form.content : '' %></textarea>
+          <span class="form-hint" id="charCount">已输入 0 字</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="value_note">一句话说明：这篇内容对别人有什么价值？</label>
+          <input class="form-input" type="text" id="value_note" name="value_note" placeholder="例：帮助其他研究者避免类似的选题陷阱">
+          <span class="form-hint">非必填，但有助于编辑部评估稿件。</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-check">
+            <input type="checkbox" name="agree" value="1" required>
+            <span>我确认以上内容为本人真实经历或观点，不涉及捏造、诽谤或侵犯他人知识产权。我理解本平台为非正式学术交流空间。 <span class="required">*</span></span>
+          </label>
+        </div>
+
+        <button class="btn-submit" type="submit">提交投稿</button>
+      </form>
+
+      <aside class="form-sidebar">
+        <div class="sidebar-card">
+          <h3 class="sidebar-card__title">投稿须知</h3>
+          <div class="sidebar-card__body">
+            <p>接受以下类型的投稿：</p>
+            <ul>
+              <li>失败实验或负结果的记录与反思</li>
+              <li>被拒稿件的复盘或被删段落的分享</li>
+              <li>方法层面的教训与踩坑经历</li>
+              <li>审稿意见的匿名分享与讨论</li>
+              <li>选题失败的复盘分析</li>
+              <li>科研过程中的情绪与心理记录</li>
+            </ul>
+          </div>
+        </div>
+        <div class="sidebar-card">
+          <h3 class="sidebar-card__title">稿件追踪</h3>
+          <div class="sidebar-card__body">
+            <p>投稿成功后将获得一个编号（如 NRR-2026-001），凭此编号可在 <a href="/track" style="color:var(--accent)">稿件追踪</a> 页面查询审核进度。</p>
+          </div>
+        </div>
+        <div class="sidebar-card">
+          <h3 class="sidebar-card__title">免责声明</h3>
+          <div class="sidebar-card__body">
+            <p>本平台为非正式学术交流空间。所刊内容不用于职称评审、成果认定或任何正式学术评价。</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<%- include('partials/footer') %>
+<script>
+document.getElementById('author_mode').addEventListener('change', function(){
+  document.getElementById('penNameGroup').style.display = this.value !== 'anonymous' ? '' : 'none';
+});
+var ta = document.getElementById('content');
+var cc = document.getElementById('charCount');
+if (ta && cc) {
+  function updateCount(){ cc.textContent = '已输入 ' + ta.value.length + ' 字'; }
+  ta.addEventListener('input', updateCount);
+  updateCount();
+}
+</script>
