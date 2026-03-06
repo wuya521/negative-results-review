@@ -5,28 +5,28 @@
   <div class="container">
     <p class="page-header__label">Archive / 归档</p>
     <h1 class="page-header__title">档案馆</h1>
-    <p class="page-header__sub">所有已发布的稿件在此长期公开存档。</p>
+    <p class="page-header__sub">所有已发布的稿件在此长期公开存档。支持按栏目、年份、关键词全文检索。</p>
   </div>
 </header>
 
 <main class="section">
   <div class="container">
-    <form method="GET" action="/archive" style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:2rem;padding-bottom:1rem;border-bottom:1px solid var(--border)">
-      <span style="font-size:.72rem;color:var(--text-light);letter-spacing:.06em">筛选</span>
-      <select name="section" style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:2px;font-size:.78rem;background:var(--bg)">
+    <form method="GET" action="/archive" class="archive-filters">
+      <span class="filter-tag">筛选</span>
+      <select name="section" class="form-select form-select--sm">
         <option value="">全部栏目</option>
         <% sections.forEach(function(s) { %><option value="<%= s %>" <%= filters.section===s?'selected':'' %>><%= s %></option><% }) %>
       </select>
-      <select name="year" style="padding:.35rem .6rem;border:1px solid var(--border);border-radius:2px;font-size:.78rem;background:var(--bg)">
+      <select name="year" class="form-select form-select--sm">
         <option value="">全部年份</option>
         <% years.forEach(function(y) { %><option value="<%= y %>" <%= filters.year===y?'selected':'' %>><%= y %></option><% }) %>
       </select>
-      <label style="font-size:.78rem;color:var(--text-sec);display:flex;align-items:center;gap:.3rem;cursor:pointer">
-        <input type="checkbox" name="featured" value="1" <%= filters.featured==='1'?'checked':'' %> style="accent-color:var(--accent)"> 仅精选
+      <label class="archive-check">
+        <input type="checkbox" name="featured" value="1" <%= filters.featured==='1'?'checked':'' %>> 仅精选
       </label>
-      <input type="text" name="q" placeholder="搜索标题或学科…" value="<%= filters.q || '' %>" style="padding:.35rem .7rem;border:1px solid var(--border);border-radius:2px;font-size:.78rem;background:var(--bg);width:180px">
-      <button type="submit" style="padding:.35rem .8rem;border:1px solid var(--border);border-radius:2px;font-size:.75rem;cursor:pointer;background:var(--bg)">搜索</button>
-      <% if (filters.section||filters.year||filters.featured||filters.q) { %><a href="/archive" style="font-size:.72rem;color:var(--text-light)">清除</a><% } %>
+      <input type="text" name="q" placeholder="搜索标题、学科、正文、标签…" value="<%= filters.q || '' %>" class="form-input form-input--sm" style="width:220px">
+      <button type="submit" class="btn-filter">搜索</button>
+      <% if (filters.section||filters.year||filters.featured||filters.q) { %><a href="/archive" class="filter-clear">清除</a><% } %>
     </form>
 
     <% if (articles.length > 0) { %>
@@ -42,6 +42,7 @@
         <div class="article-meta-side">
           <span class="article-column"><%= a.section %></span>
           <span class="article-date"><%= a.published_at ? a.published_at.substring(0,10).replace(/-/g,'.') : '' %></span>
+          <span class="article-views"><%= a.view_count || 0 %> 阅读</span>
         </div>
       </a>
       <% }) %>

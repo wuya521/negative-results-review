@@ -1,0 +1,20 @@
+<%- include('partials/head', { pageTitle: code + ' ' + title }) %>
+<%- include('partials/nav') %>
+
+<header class="page-header">
+  <div class="container">
+    <p class="page-header__label">ERROR <%= code %></p>
+    <h1 class="page-header__title"><%= title %></h1>
+    <p class="page-header__sub"><%= message %></p>
+  </div>
+</header>
+
+<main class="section">
+  <div class="container" style="text-align:center;padding:4rem 0">
+    <p style="font-size:5rem;opacity:.12;font-family:var(--font-mono);margin-bottom:1rem"><%= code %></p>
+    <a href="/" style="font-size:.85rem;color:var(--accent);border:1px solid var(--accent);padding:.5rem 1.5rem;border-radius:2px;transition:all .2s;display:inline-block">返回首页 →</a>
+    <p style="margin-top:1.5rem"><a href="javascript:history.back()" style="font-size:.8rem;color:var(--text-light)">← 或返回上一页</a></p>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

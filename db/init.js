@@ -13,12 +13,13 @@ async function initDB() {
     dateStrings: true,
   });
 
-  // --- Tables ---
+  // --- Core Tables ---
   await pool.query(`
     CREATE TABLE IF NOT EXISTS admins (
       id            INT AUTO_INCREMENT PRIMARY KEY,
       username      VARCHAR(50)  UNIQUE NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
+      role          VARCHAR(20)  NOT NULL DEFAULT 'admin',
       created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
@@ -43,6 +44,7 @@ async function initDB() {
       is_editor_pick      TINYINT(1)   NOT NULL DEFAULT 0,
       is_trending         TINYINT(1)   NOT NULL DEFAULT 0,
       tags                VARCHAR(500) DEFAULT '',
+      view_count          INT          NOT NULL DEFAULT 0,
       is_archived         TINYINT(1)   NOT NULL DEFAULT 0,
       created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -50,12 +52,51 @@ async function initDB() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-  // --- Migration: add columns if upgrading from older schema ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS comments (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      article_id  INT          NOT NULL,
+      nickname    VARCHAR(100) NOT NULL DEFAULT '匿名读者',
+      content     TEXT         NOT NULL,
+      created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_article (article_id),
+      FOREIGN KEY (article_id) REFERENCES manuscripts(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS operation_logs (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      admin_id    INT,
+      admin_name  VARCHAR(50),
+      action      VARCHAR(100) NOT NULL,
+      target_type VARCHAR(50),
+      target_id   INT,
+      details     TEXT,
+      created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_target (target_type, target_id),
+      INDEX idx_admin (admin_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // --- Sessions table (for express-mysql-session) ---
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      session_id VARCHAR(128) NOT NULL PRIMARY KEY,
+      expires    INT UNSIGNED NOT NULL,
+      data       MEDIUMTEXT,
+      INDEX idx_expires (expires)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  // --- Migrations for upgrading from older schema ---
   const migrations = [
     "ALTER TABLE manuscripts ADD COLUMN IF NOT EXISTS is_pinned TINYINT(1) NOT NULL DEFAULT 0 AFTER is_featured",
     "ALTER TABLE manuscripts ADD COLUMN IF NOT EXISTS is_editor_pick TINYINT(1) NOT NULL DEFAULT 0 AFTER is_pinned",
     "ALTER TABLE manuscripts ADD COLUMN IF NOT EXISTS is_trending TINYINT(1) NOT NULL DEFAULT 0 AFTER is_editor_pick",
     "ALTER TABLE manuscripts ADD COLUMN IF NOT EXISTS tags VARCHAR(500) DEFAULT '' AFTER is_trending",
+    "ALTER TABLE manuscripts ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0 AFTER tags",
+    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'admin' AFTER password_hash",
   ];
   for (const sql of migrations) {
     try { await pool.query(sql); } catch (e) { /* column already exists */ }
@@ -65,7 +106,7 @@ async function initDB() {
   const [adminRows] = await pool.execute('SELECT id FROM admins LIMIT 1');
   if (adminRows.length === 0) {
     const hash = bcrypt.hashSync('admin2026', 10);
-    await pool.execute('INSERT INTO admins (username, password_hash) VALUES (?, ?)', ['admin', hash]);
+    await pool.execute('INSERT INTO admins (username, password_hash, role) VALUES (?, ?, ?)', ['admin', hash, 'admin']);
     console.log('[DB] 初始管理员已创建: admin / admin2026');
   }
 

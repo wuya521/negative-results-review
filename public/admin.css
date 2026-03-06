@@ -311,3 +311,67 @@ button,input,textarea,select{font-family:inherit;font-size:inherit;color:inherit
 .page-link{font-size:.78rem;color:var(--accent);border:1px solid var(--accent);padding:.35rem .9rem;border-radius:2px;text-decoration:none;transition:all .2s}
 .page-link:hover{background:var(--accent);color:#fff}
 .page-info{font-family:var(--font-mono);font-size:.7rem;color:var(--text-light)}
+
+/* ============ BATCH BAR ============ */
+.batch-bar{
+  display:flex;align-items:center;gap:.6rem;padding:.6rem 1rem;
+  background:var(--blue-bg);border:1px solid var(--blue);border-radius:2px;margin-bottom:1rem;
+}
+.batch-count{font-size:.78rem;font-weight:500;color:var(--blue)}
+
+/* ============ EXPORT BUTTON ============ */
+.export-btn{
+  margin-left:auto;font-size:.72rem;color:var(--text-light);
+  border:1px solid var(--border);padding:.2rem .8rem;border-radius:2px;
+  transition:all .2s;text-decoration:none;
+}
+.export-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ============ OPERATION LOG ============ */
+.log-list{display:flex;flex-direction:column;gap:0}
+.log-item{
+  display:flex;align-items:center;gap:.8rem;padding:.5rem 0;
+  border-bottom:1px solid var(--border);font-size:.78rem;
+}
+.log-item:last-child{border-bottom:none}
+.log-time{font-family:var(--font-mono);font-size:.68rem;color:var(--text-light);white-space:nowrap;min-width:130px}
+.log-admin{font-weight:500;min-width:60px}
+.log-action{
+  font-size:.66rem;padding:2px 8px;border:1px solid var(--border);
+  border-radius:1px;color:var(--text-sec);white-space:nowrap;
+}
+.log-detail{font-size:.72rem;color:var(--text-light);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ============ CHART BARS ============ */
+.chart-bar:hover{opacity:.8}
+.chart-bar::after{
+  content:attr(title);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);
+  font-size:.55rem;color:var(--text-light);white-space:nowrap;opacity:0;transition:opacity .2s;
+  pointer-events:none;padding-bottom:2px;
+}
+.chart-bar:hover::after{opacity:1}
+
+/* ============ DARK MODE (admin) ============ */
+[data-theme="dark"]{
+  --bg:#1A1A1C;--bg-alt:#222224;--bg-dark:#111113;
+  --text:#E8E6E3;--text-sec:#A0A0A0;--text-light:#6A6A6A;
+  --accent:#D4734E;--accent-hover:#E08B68;
+  --border:#333336;--border-dark:#444448;
+  --green:#4CAF50;--green-bg:#1C2E1E;
+  --amber:#D4A017;--amber-bg:#2E2810;
+  --red-bg:#3A2520;--blue:#5B9BD5;--blue-bg:#1A2530;
+}
+[data-theme="dark"] .login-page{background:#0A0A0C}
+[data-theme="dark"] .login-box{background:var(--bg)}
+[data-theme="dark"] .login-field input{background:var(--bg-alt);color:var(--text)}
+[data-theme="dark"] .sidebar{background:#0F0F11}
+[data-theme="dark"] .summary-card{background:var(--bg)}
+[data-theme="dark"] .ms-list{background:var(--bg)}
+[data-theme="dark"] .detail-card{background:var(--bg)}
+[data-theme="dark"] .edit-card{background:var(--bg)}
+[data-theme="dark"] .status-card{background:var(--bg)}
+[data-theme="dark"] .edit-field select,
+[data-theme="dark"] .edit-field input,
+[data-theme="dark"] .edit-note textarea{background:var(--bg-alt);color:var(--text)}
+[data-theme="dark"] .filter-select,
+[data-theme="dark"] .filter-search{background:var(--bg);color:var(--text)}

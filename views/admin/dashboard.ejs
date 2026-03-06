@@ -29,6 +29,49 @@
       <div class="summary-card"><div class="val"><%= stats.published %></div><div class="lbl">已发布</div></div>
     </div>
 
+    <!-- Charts row -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem">
+      <!-- Submission trend chart -->
+      <div class="detail-card" style="margin-bottom:0">
+        <h3 style="font-family:var(--font-serif);font-size:.92rem;font-weight:700;margin-bottom:1rem">近 30 天投稿趋势</h3>
+        <div class="chart-bars" style="display:flex;align-items:flex-end;gap:2px;height:120px;padding-top:.5rem">
+          <% var maxC = Math.max(1, ...weekData.map(function(d){return d.c}));
+             weekData.forEach(function(d) { var pct = Math.round((d.c / maxC) * 100); %>
+          <div class="chart-bar" style="flex:1;background:var(--accent);min-height:2px;height:<%= pct %>%;border-radius:1px 1px 0 0;position:relative" title="<%= d.day %>: <%= d.c %> 篇">
+          </div>
+          <% }) %>
+          <% if (weekData.length === 0) { %>
+          <div style="width:100%;text-align:center;color:var(--text-light);font-size:.78rem;align-self:center">暂无数据</div>
+          <% } %>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:.3rem">
+          <% if (weekData.length > 0) { %>
+          <span style="font-size:.58rem;color:var(--text-light);font-family:var(--font-mono)"><%= weekData[0].day.substring(5) %></span>
+          <span style="font-size:.58rem;color:var(--text-light);font-family:var(--font-mono)"><%= weekData[weekData.length-1].day.substring(5) %></span>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Section distribution -->
+      <div class="detail-card" style="margin-bottom:0">
+        <h3 style="font-family:var(--font-serif);font-size:.92rem;font-weight:700;margin-bottom:1rem">栏目分布</h3>
+        <div style="display:flex;flex-direction:column;gap:.5rem">
+          <% var maxSec = Math.max(1, ...sectionData.map(function(s){return s.c}));
+             sectionData.forEach(function(s) { var pct = Math.round((s.c / maxSec) * 100); %>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:.2rem">
+              <span style="color:var(--text-sec)"><%= s.section %></span>
+              <span style="font-family:var(--font-mono);color:var(--text-light)"><%= s.c %></span>
+            </div>
+            <div style="height:6px;background:var(--bg-alt);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:<%= pct %>%;background:var(--accent);border-radius:3px;transition:width .5s"></div>
+            </div>
+          </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+
     <div class="sec-header">
       <h2>最新投稿</h2>
       <span class="tag">Recent Submissions</span>

@@ -39,6 +39,7 @@
         <div class="meta-item"><div class="ml">学科方向</div><div class="mv"><%= ms.discipline %></div></div>
         <div class="meta-item"><div class="ml">署名方式</div><div class="mv"><%= ({anonymous:'匿名',pen_name:'笔名',real_name:'实名'})[ms.author_mode] %><%= ms.pen_name ? ' ('+ms.pen_name+')' : '' %></div></div>
         <div class="meta-item"><div class="ml">风险等级</div><div class="mv"><span class="risk-dot <%= ms.risk_level %>"></span><%= riskLabel(ms.risk_level) %>风险</div></div>
+        <div class="meta-item"><div class="ml">浏览量</div><div class="mv mono"><%= ms.view_count || 0 %></div></div>
         <div class="meta-item"><div class="ml">投稿时间</div><div class="mv mono"><%= ms.created_at %></div></div>
         <div class="meta-item"><div class="ml">更新时间</div><div class="mv mono"><%= ms.updated_at %></div></div>
         <% if (ms.published_at) { %>
@@ -128,35 +129,54 @@
       <button type="submit" class="btn-save">保存审核信息</button>
     </form>
 
-    <!-- Status Actions -->
+    <!-- Status Actions with Confirmation -->
     <div class="status-card">
       <h3>状态流转</h3>
       <p>当前状态：<strong><%= statusLabel(ms.status) %></strong></p>
       <div class="status-actions">
-        <% if (ms.status === 'pending') { %>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="under_review"><button type="submit" class="act-btn blue">标记为审核中</button></form>
-        <% } %>
-        <% if (['pending','under_review'].includes(ms.status)) { %>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="revision"><button type="submit" class="act-btn amber">退修</button></form>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="accepted"><button type="submit" class="act-btn green">录用</button></form>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="rejected"><button type="submit" class="act-btn danger">不录用</button></form>
-        <% } %>
-        <% if (ms.status === 'revision') { %>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="under_review"><button type="submit" class="act-btn blue">重新审核</button></form>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="accepted"><button type="submit" class="act-btn green">录用</button></form>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="rejected"><button type="submit" class="act-btn danger">不录用</button></form>
-        <% } %>
-        <% if (ms.status === 'accepted') { %>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="published"><button type="submit" class="act-btn primary">发布到前台</button></form>
-        <% } %>
-        <% if (ms.status === 'published') { %>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="archived"><button type="submit" class="act-btn">归档</button></form>
-        <% } %>
-        <% if (['rejected','archived'].includes(ms.status)) { %>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><input type="hidden" name="status" value="pending"><button type="submit" class="act-btn">重置为待审</button></form>
-        <% } %>
+        <% var actions = [];
+           if (ms.status === 'pending') actions.push({s:'under_review',l:'标记为审核中',c:'blue',confirm:false});
+           if (['pending','under_review'].includes(ms.status)) {
+             actions.push({s:'revision',l:'退修',c:'amber',confirm:true});
+             actions.push({s:'accepted',l:'录用',c:'green',confirm:true});
+             actions.push({s:'rejected',l:'不录用',c:'danger',confirm:true});
+           }
+           if (ms.status === 'revision') {
+             actions.push({s:'under_review',l:'重新审核',c:'blue',confirm:false});
+             actions.push({s:'accepted',l:'录用',c:'green',confirm:true});
+             actions.push({s:'rejected',l:'不录用',c:'danger',confirm:true});
+           }
+           if (ms.status === 'accepted') actions.push({s:'published',l:'发布到前台',c:'primary',confirm:true});
+           if (ms.status === 'published') actions.push({s:'archived',l:'归档',c:'',confirm:true});
+           if (['rejected','archived'].includes(ms.status)) actions.push({s:'pending',l:'重置为待审',c:'',confirm:true});
+        %>
+        <% actions.forEach(function(a) { %>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"
+              <% if (a.confirm) { %>onsubmit="return confirm('确认将此稿件设为「<%= statusLabel(a.s) %>」？此操作将被记录。')"<% } %>>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="status" value="<%= a.s %>">
+          <button type="submit" class="act-btn <%= a.c %>"><%= a.l %></button>
+        </form>
+        <% }) %>
       </div>
     </div>
+
+    <!-- Operation Log for this manuscript -->
+    <% if (logs && logs.length > 0) { %>
+    <div class="detail-card" style="margin-top:1.5rem">
+      <h3 style="font-family:var(--font-serif);font-size:.92rem;font-weight:700;margin-bottom:1rem">操作记录</h3>
+      <div class="log-list">
+        <% logs.forEach(function(log) { %>
+        <div class="log-item">
+          <span class="log-time"><%= log.created_at %></span>
+          <span class="log-admin"><%= log.admin_name %></span>
+          <span class="log-action"><%= log.action %></span>
+          <% if (log.details) { %><span class="log-detail"><%= log.details %></span><% } %>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+    <% } %>
   </div>
 </div>
 </div>
@@ -168,7 +188,7 @@ if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mo
 if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
 var msg='<%= msg || "" %>';
 if(msg){
-  var labels={saved:'修改已保存',content_saved:'内容已保存',content_empty:'标题和正文不能为空',status_pending:'已重置为待审',status_under_review:'已标记为审核中',status_revision:'已退修',status_accepted:'已录用',status_rejected:'已拒稿',status_published:'已发布到前台',status_archived:'已归档'};
+  var labels={saved:'修改已保存',content_saved:'内容已保存',content_empty:'标题和正文不能为空',status_pending:'已重置为待审',status_under_review:'已标记为审核中',status_revision:'已退修',status_accepted:'已录用',status_rejected:'已拒稿',status_published:'已发布到前台',status_archived:'已归档',invalid:'无效操作'};
   var t=document.getElementById('toast');t.textContent=labels[msg]||msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},3500);
 }
 </script>

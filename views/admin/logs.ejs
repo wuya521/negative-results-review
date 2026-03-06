@@ -1,0 +1,60 @@
+<%- include('partials/head', { pageTitle: '操作日志' }) %>
+<body>
+<div class="layout">
+<%- include('partials/sidebar', { active: 'logs', stats: stats, admin: admin }) %>
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
+      <span class="topbar-issue">ISSUE 001</span>
+      <span class="topbar-status"><span class="dot"></span>操作日志</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-stat"><div class="num"><%= stats.total || 0 %></div><div class="label">总稿件</div></div>
+    </div>
+  </header>
+
+  <div class="content">
+    <div class="sec-header">
+      <h2>操作日志</h2>
+      <span class="tag">Operation Logs</span>
+    </div>
+
+    <div class="ms-list">
+      <div class="ms-head" style="grid-template-columns:150px 80px 1fr 1fr auto">
+        <span>时间</span><span>操作者</span><span>操作</span><span>详情</span><span>目标</span>
+      </div>
+      <% if (logs.length === 0) { %>
+      <div class="empty-state"><div class="icon">⟳</div>暂无操作记录</div>
+      <% } else { %>
+      <% logs.forEach(function(log) { %>
+      <div class="ms-item" style="grid-template-columns:150px 80px 1fr 1fr auto;cursor:default">
+        <span class="ms-date" style="white-space:normal"><%= log.created_at %></span>
+        <span style="font-size:.78rem;font-weight:500"><%= log.admin_name || '-' %></span>
+        <span class="badge badge-pending" style="justify-self:start"><%= log.action %></span>
+        <span style="font-size:.75rem;color:var(--text-sec)"><%= log.details || '-' %></span>
+        <span style="font-size:.72rem;color:var(--text-light);font-family:var(--font-mono)">
+          <% if (log.target_type === 'manuscript' && log.target_id) { %><a href="/admin/manuscripts/<%= log.target_id %>" style="color:var(--accent)">#<%= log.target_id %></a><% } else { %><%= log.target_type || '-' %><% } %>
+        </span>
+      </div>
+      <% }) %>
+      <% } %>
+    </div>
+
+    <% if (totalPages > 1) { %>
+    <div class="pagination">
+      <% if (page > 1) { %><a href="/admin/logs?page=<%= page-1 %>" class="page-link">← 上一页</a><% } %>
+      <span class="page-info"><%= page %> / <%= totalPages %></span>
+      <% if (page < totalPages) { %><a href="/admin/logs?page=<%= page+1 %>" class="page-link">下一页 →</a><% } %>
+    </div>
+    <% } %>
+  </div>
+</div>
+</div>
+
+<script>
+var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
+if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}
+if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
+</script>
+</body></html>

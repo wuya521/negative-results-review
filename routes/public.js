@@ -1,11 +1,6 @@
 const express = require('express');
 const router = express.Router();
-
-const SECTIONS = [
-  '负结果档案', '废稿回收站', '方法翻车实录',
-  'Reviewer 鬼话档案', '选题尸检报告', '学术情绪标本室', '年度学术垃圾奖'
-];
-const PER_PAGE = 10;
+const { SECTIONS, PER_PAGE_PUBLIC, estimateReadingTime } = require('../config/constants');
 
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
@@ -19,7 +14,7 @@ module.exports = function (submitLimiter, csrfCheck) {
        FROM manuscripts WHERE status = 'published' AND is_pinned = 1 ORDER BY published_at DESC LIMIT 3`
     );
     const [articles] = await db.execute(
-      `SELECT id, submission_no, title, section, author_mode, pen_name, is_pinned, is_editor_pick, is_trending, is_featured, tags, published_at
+      `SELECT id, submission_no, title, section, author_mode, pen_name, is_pinned, is_editor_pick, is_trending, is_featured, tags, published_at, view_count
        FROM manuscripts WHERE status = 'published' ORDER BY is_pinned DESC, published_at DESC LIMIT 8`
     );
     const [featured] = await db.execute(
@@ -74,8 +69,14 @@ module.exports = function (submitLimiter, csrfCheck) {
 
   router.post('/track', csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    const no = (req.body.submission_no || '').trim();
+    let no = (req.body.submission_no || '').trim();
     if (!no) return res.render('track', { result: null, query: '', error: '请输入稿件编号' });
+
+    // Fuzzy match: if user enters just a number like "001", expand it
+    if (/^\d{1,4}$/.test(no)) {
+      const year = new Date().getFullYear();
+      no = `NRR-${year}-${no.padStart(3, '0')}`;
+    }
 
     const [rows] = await db.execute(
       `SELECT submission_no, title, section, status, risk_level, desensitized_status,
@@ -84,7 +85,7 @@ module.exports = function (submitLimiter, csrfCheck) {
     );
 
     if (rows.length === 0) {
-      return res.render('track', { result: null, query: no, error: '未找到该编号的稿件，请检查输入' });
+      return res.render('track', { result: null, query: no, error: '未找到该编号的稿件，请检查输入。支持输入完整编号（NRR-2026-001）或简短编号（001）。' });
     }
 
     const ms = rows[0];
@@ -100,15 +101,10 @@ module.exports = function (submitLimiter, csrfCheck) {
 
     res.render('track', {
       result: {
-        no: ms.submission_no,
-        title: ms.title,
-        section: ms.section,
-        status: ms.status,
-        statusText: statusMap[ms.status] || ms.status,
+        no: ms.submission_no, title: ms.title, section: ms.section,
+        status: ms.status, statusText: statusMap[ms.status] || ms.status,
         editorNote: ms.status === 'revision' ? ms.editor_note : null,
-        createdAt: ms.created_at,
-        updatedAt: ms.updated_at,
-        publishedAt: ms.published_at,
+        createdAt: ms.created_at, updatedAt: ms.updated_at, publishedAt: ms.published_at,
       },
       query: no,
     });
@@ -123,8 +119,64 @@ module.exports = function (submitLimiter, csrfCheck) {
     const [rows] = await db.execute(
       `SELECT * FROM manuscripts WHERE id = ? AND status IN ('published','archived')`, [req.params.id]
     );
-    if (rows.length === 0) return res.status(404).send('<h1>404</h1><p>文章不存在或尚未发布。</p><a href="/">返回首页</a>');
-    res.render('article', { article: rows[0] });
+    if (rows.length === 0) {
+      return res.status(404).render('error', { code: 404, title: '文章不存在', message: '文章不存在或尚未发布。' });
+    }
+
+    const article = rows[0];
+
+    // Increment view count (fire and forget)
+    db.execute('UPDATE manuscripts SET view_count = view_count + 1 WHERE id = ?', [req.params.id]).catch(() => {});
+
+    // Load comments
+    const [comments] = await db.execute(
+      'SELECT id, nickname, content, created_at FROM comments WHERE article_id = ? ORDER BY created_at ASC', [req.params.id]
+    );
+
+    // Related articles: same section or shared tags
+    const tags = (article.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+    let related = [];
+    if (tags.length > 0) {
+      const tagConditions = tags.map(() => 'tags LIKE ?').join(' OR ');
+      const tagParams = tags.map(t => `%${t}%`);
+      const [relRows] = await db.execute(
+        `SELECT id, title, section, published_at, view_count FROM manuscripts
+         WHERE status IN ('published','archived') AND id != ? AND (section = ? OR ${tagConditions})
+         ORDER BY published_at DESC LIMIT 4`,
+        [article.id, article.section, ...tagParams]
+      );
+      related = relRows;
+    }
+    if (related.length < 3) {
+      const excludeIds = [article.id, ...related.map(r => r.id)];
+      const placeholders = excludeIds.map(() => '?').join(',');
+      const [moreRows] = await db.execute(
+        `SELECT id, title, section, published_at, view_count FROM manuscripts
+         WHERE status IN ('published','archived') AND id NOT IN (${placeholders})
+         ORDER BY published_at DESC LIMIT ?`,
+        [...excludeIds, 4 - related.length]
+      );
+      related = [...related, ...moreRows].slice(0, 4);
+    }
+
+    const readingTime = estimateReadingTime(article.content);
+
+    res.render('article', { article, comments, related, readingTime });
+  }));
+
+  // ---------- Post Comment ----------
+  router.post('/article/:id/comment', csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    const { nickname, content } = req.body;
+    if (!content || content.trim().length < 2) {
+      return res.redirect(`/article/${req.params.id}#comments`);
+    }
+    const safeName = (nickname || '').trim() || '匿名读者';
+    await db.execute(
+      'INSERT INTO comments (article_id, nickname, content) VALUES (?, ?, ?)',
+      [req.params.id, safeName.substring(0, 100), content.trim().substring(0, 2000)]
+    );
+    res.redirect(`/article/${req.params.id}#comments`);
   }));
 
   // ---------- Archive ----------
@@ -135,24 +187,24 @@ module.exports = function (submitLimiter, csrfCheck) {
 
     let countSql = `SELECT COUNT(*) as c FROM manuscripts WHERE status IN ('published','archived')`;
     let sql = `SELECT id, submission_no, title, section, author_mode, pen_name,
-                      is_featured, is_pinned, is_editor_pick, is_trending, tags, published_at
+                      is_featured, is_pinned, is_editor_pick, is_trending, tags, published_at, view_count
                FROM manuscripts WHERE status IN ('published','archived')`;
     const params = [];
 
-    if (section)        { const f = ' AND section = ?';    sql += f; countSql += f; params.push(section); }
-    if (year)           { const f = ' AND YEAR(published_at) = ?'; sql += f; countSql += f; params.push(year); }
+    if (section) { const f = ' AND section = ?'; sql += f; countSql += f; params.push(section); }
+    if (year) { const f = ' AND YEAR(published_at) = ?'; sql += f; countSql += f; params.push(year); }
     if (featured === '1') { const f = ' AND is_featured = 1'; sql += f; countSql += f; }
     if (q) {
-      const f = ' AND (title LIKE ? OR discipline LIKE ?)';
+      const f = ' AND (title LIKE ? OR discipline LIKE ? OR content LIKE ? OR tags LIKE ?)';
       sql += f; countSql += f;
-      params.push('%' + q + '%', '%' + q + '%');
+      params.push('%' + q + '%', '%' + q + '%', '%' + q + '%', '%' + q + '%');
     }
 
     const [[{ c: total }]] = await db.execute(countSql, params);
-    const totalPages = Math.ceil(Number(total) / PER_PAGE) || 1;
+    const totalPages = Math.ceil(Number(total) / PER_PAGE_PUBLIC) || 1;
 
     sql += ' ORDER BY is_pinned DESC, published_at DESC LIMIT ? OFFSET ?';
-    const [articles] = await db.execute(sql, [...params, PER_PAGE, (page - 1) * PER_PAGE]);
+    const [articles] = await db.execute(sql, [...params, PER_PAGE_PUBLIC, (page - 1) * PER_PAGE_PUBLIC]);
 
     const [yearRows] = await db.execute(
       `SELECT DISTINCT YEAR(published_at) as y FROM manuscripts
@@ -165,6 +217,42 @@ module.exports = function (submitLimiter, csrfCheck) {
       filters: { section, year, featured, q },
       page, totalPages,
     });
+  }));
+
+  // ---------- RSS Feed ----------
+  router.get('/rss', wrap(async (req, res) => {
+    const db = res.locals.db;
+    const [articles] = await db.execute(
+      `SELECT id, submission_no, title, section, content, published_at
+       FROM manuscripts WHERE status = 'published' ORDER BY published_at DESC LIMIT 20`
+    );
+
+    const host = req.protocol + '://' + req.get('host');
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n<channel>\n';
+    xml += '  <title>负结果通讯 — Negative Results Review</title>\n';
+    xml += '  <link>' + host + '</link>\n';
+    xml += '  <description>非正式学术交流与电子选刊平台</description>\n';
+    xml += '  <language>zh-CN</language>\n';
+    xml += '  <atom:link href="' + host + '/rss" rel="self" type="application/rss+xml"/>\n';
+
+    for (const a of articles) {
+      const excerpt = (a.content || '').substring(0, 300).replace(/[<>&"]/g, c =>
+        ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])
+      );
+      xml += '  <item>\n';
+      xml += '    <title>' + a.title.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) + '</title>\n';
+      xml += '    <link>' + host + '/article/' + a.id + '</link>\n';
+      xml += '    <guid>' + host + '/article/' + a.id + '</guid>\n';
+      xml += '    <description>' + excerpt + '...</description>\n';
+      xml += '    <category>' + a.section + '</category>\n';
+      if (a.published_at) xml += '    <pubDate>' + new Date(a.published_at).toUTCString() + '</pubDate>\n';
+      xml += '  </item>\n';
+    }
+    xml += '</channel>\n</rss>';
+
+    res.set('Content-Type', 'application/rss+xml; charset=utf-8');
+    res.send(xml);
   }));
 
   return router;

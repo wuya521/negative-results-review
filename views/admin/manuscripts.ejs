@@ -21,6 +21,7 @@
     <div class="sec-header">
       <h2><%= filters.status ? statusLabel(filters.status) + '稿件' : '全部稿件' %></h2>
       <span class="tag"><%= manuscripts.length %> items</span>
+      <a href="/admin/manuscripts/export" class="export-btn" title="导出 CSV">⬇ 导出</a>
     </div>
 
     <!-- Filters -->
@@ -56,32 +57,48 @@
         <option value="risk"   <%= filters.sort==='risk'?'selected':'' %>>风险优先</option>
       </select>
 
-      <input type="text" name="q" class="filter-search" placeholder="搜索标题…" value="<%= filters.q || '' %>">
+      <input type="text" name="q" class="filter-search" placeholder="搜索标题、正文、编号…" value="<%= filters.q || '' %>">
       <button type="submit" class="filter-submit">筛选</button>
       <a href="/admin/manuscripts" class="filter-reset">重置</a>
     </form>
 
+    <!-- Batch Actions -->
+    <form method="POST" action="/admin/manuscripts/batch" id="batchForm">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="batch-bar" id="batchBar" style="display:none">
+        <span class="batch-count" id="batchCount">已选 0 篇</span>
+        <select name="action" class="filter-select" required>
+          <option value="">批量操作…</option>
+          <option value="under_review">标记审核中</option>
+          <option value="accepted">批量录用</option>
+          <option value="rejected">批量拒稿</option>
+          <option value="published">批量发布</option>
+        </select>
+        <button type="submit" class="filter-submit" onclick="return confirm('确认执行批量操作？')">执行</button>
+      </div>
+
     <!-- List -->
     <div class="ms-list">
       <div class="ms-head">
-        <span>#</span><span>标题</span><span>栏目</span><span>状态</span><span>日期</span><span>匿名</span><span>风险</span>
+        <span><input type="checkbox" id="selectAll" title="全选"></span><span>标题</span><span>栏目</span><span>状态</span><span>日期</span><span>匿名</span><span>风险</span>
       </div>
       <% if (manuscripts.length === 0) { %>
       <div class="empty-state"><div class="icon">◇</div>暂无匹配稿件</div>
       <% } else { %>
       <% manuscripts.forEach(function(m, i) { %>
-      <a href="/admin/manuscripts/<%= m.id %>" class="ms-item" style="text-decoration:none;color:inherit">
-        <span class="ms-idx"><%= String(i+1).padStart(2,'0') %></span>
+      <div class="ms-item" onclick="if(event.target.type!=='checkbox')location.href='/admin/manuscripts/<%= m.id %>'">
+        <span><input type="checkbox" name="ids" value="<%= m.id %>" class="batch-check"></span>
         <span class="ms-title" title="<%= m.title %>"><%= m.title %></span>
         <span class="ms-col" title="<%= m.section %>"><%= m.section %></span>
         <span class="badge badge-<%= m.status %>"><%= statusLabel(m.status) %></span>
         <span class="ms-date"><%= m.created_at.substring(0,10) %></span>
         <span class="ms-anon"><%= m.author_mode==='anonymous'?'匿名':'署名' %></span>
         <span class="ms-risk <%= m.risk_level %>" title="<%= riskLabel(m.risk_level) %>风险"></span>
-      </a>
+      </div>
       <% }) %>
       <% } %>
     </div>
+    </form>
 
     <% if (totalPages > 1) { %>
     <div class="pagination">
@@ -100,6 +117,32 @@
 var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
 if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}
 if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
+
+// Batch selection
+var checks=document.querySelectorAll('.batch-check');
+var selectAll=document.getElementById('selectAll');
+var batchBar=document.getElementById('batchBar');
+var batchCount=document.getElementById('batchCount');
+
+function updateBatch(){
+  var n=document.querySelectorAll('.batch-check:checked').length;
+  batchBar.style.display=n>0?'flex':'none';
+  batchCount.textContent='已选 '+n+' 篇';
+}
+checks.forEach(function(c){c.addEventListener('change',updateBatch)});
+if(selectAll){
+  selectAll.addEventListener('change',function(){
+    checks.forEach(function(c){c.checked=selectAll.checked});
+    updateBatch();
+  });
+}
+
+// Toast
+var params=new URLSearchParams(location.search);
+if(params.get('msg')==='batch_done'){
+  var t=document.createElement('div');t.className='toast show';t.textContent='批量操作已完成';
+  document.body.appendChild(t);setTimeout(function(){t.classList.remove('show')},3500);
+}
 </script>
 </body>
 </html>

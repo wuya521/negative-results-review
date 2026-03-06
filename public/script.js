@@ -25,6 +25,39 @@
     });
   }
 
+  /* ---------- Dark mode toggle ---------- */
+  var themeToggle = document.getElementById('themeToggle');
+  if (themeToggle) {
+    function updateToggleIcon() {
+      var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      themeToggle.textContent = isDark ? '☀' : '◐';
+    }
+    updateToggleIcon();
+
+    themeToggle.addEventListener('click', function () {
+      var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      if (isDark) {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('nrr-theme', 'light');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('nrr-theme', 'dark');
+      }
+      updateToggleIcon();
+    });
+  }
+
+  /* ---------- Back to top ---------- */
+  var backBtn = document.getElementById('backToTop');
+  if (backBtn) {
+    window.addEventListener('scroll', function () {
+      backBtn.classList.toggle('visible', window.scrollY > 400);
+    }, { passive: true });
+    backBtn.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
   /* ---------- Scroll fade-in ---------- */
   var fadeEls = document.querySelectorAll('.fade-in');
   if ('IntersectionObserver' in window && fadeEls.length) {
@@ -45,9 +78,10 @@
   var modalTitle   = document.getElementById('modalTitle');
   var modalBody    = document.getElementById('modalBody');
 
-  document.querySelectorAll('.col-card').forEach(function (card) {
-    card.addEventListener('click', function () {
+  document.querySelectorAll('.col-card[data-title]').forEach(function (card) {
+    card.addEventListener('click', function (e) {
       if (!modalOverlay) return;
+      e.preventDefault();
       if (modalTag)   modalTag.textContent   = card.getAttribute('data-index');
       if (modalTitle) modalTitle.textContent = card.getAttribute('data-title');
       if (modalBody)  modalBody.innerHTML    = '<p>' + card.getAttribute('data-desc') + '</p>';

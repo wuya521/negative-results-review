@@ -31,7 +31,7 @@
     <% } %>
 
     <div class="form-wrapper">
-      <form class="form-main" method="POST" action="/submit">
+      <form class="form-main" method="POST" action="/submit" id="submitForm">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
 
         <div class="form-group">
@@ -71,8 +71,19 @@
 
         <div class="form-group">
           <label class="form-label" for="content">正文内容 <span class="required">*</span></label>
-          <textarea class="form-textarea" id="content" name="content" placeholder="请在此输入你的稿件正文。建议 500–3000 字。" required><%= typeof form!=='undefined' && form && form.content ? form.content : '' %></textarea>
-          <span class="form-hint" id="charCount">已输入 0 字</span>
+          <div class="editor-toolbar">
+            <button type="button" class="editor-btn" onclick="insertMd('**','**')" title="加粗">B</button>
+            <button type="button" class="editor-btn" onclick="insertMd('*','*')" title="斜体"><em>I</em></button>
+            <button type="button" class="editor-btn" onclick="insertMd('\n> ','')" title="引用">❝</button>
+            <button type="button" class="editor-btn" onclick="insertMd('\n---\n','')" title="分隔线">─</button>
+            <span class="editor-hint">支持 Markdown 基本语法</span>
+          </div>
+          <textarea class="form-textarea" id="content" name="content" placeholder="请在此输入你的稿件正文。支持 Markdown 语法（加粗、斜体、引用等）。" required><%= typeof form!=='undefined' && form && form.content ? form.content : '' %></textarea>
+          <div class="char-counter">
+            <span id="charCount">已输入 0 字</span>
+            <span class="char-range">建议 500–3000 字</span>
+            <span class="autosave-hint" id="autosaveHint"></span>
+          </div>
         </div>
 
         <div class="form-group">
@@ -107,6 +118,18 @@
           </div>
         </div>
         <div class="sidebar-card">
+          <h3 class="sidebar-card__title">Markdown 支持</h3>
+          <div class="sidebar-card__body">
+            <p>正文支持基本 Markdown 语法：</p>
+            <ul>
+              <li><code>**加粗**</code> → <strong>加粗</strong></li>
+              <li><code>*斜体*</code> → <em>斜体</em></li>
+              <li><code>&gt; 引用</code> → 引用块</li>
+              <li><code>---</code> → 分隔线</li>
+            </ul>
+          </div>
+        </div>
+        <div class="sidebar-card">
           <h3 class="sidebar-card__title">稿件追踪</h3>
           <div class="sidebar-card__body">
             <p>投稿成功后将获得一个编号（如 NRR-2026-001），凭此编号可在 <a href="/track" style="color:var(--accent)">稿件追踪</a> 页面查询审核进度。</p>
@@ -128,11 +151,75 @@
 document.getElementById('author_mode').addEventListener('change', function(){
   document.getElementById('penNameGroup').style.display = this.value !== 'anonymous' ? '' : 'none';
 });
+
+// Char count
 var ta = document.getElementById('content');
 var cc = document.getElementById('charCount');
 if (ta && cc) {
-  function updateCount(){ cc.textContent = '已输入 ' + ta.value.length + ' 字'; }
+  function updateCount(){
+    var len = ta.value.length;
+    cc.textContent = '已输入 ' + len + ' 字';
+    cc.style.color = (len >= 500 && len <= 3000) ? '#3A7D44' : (len > 3000 ? '#8B2500' : '');
+  }
   ta.addEventListener('input', updateCount);
   updateCount();
 }
+
+// Markdown insert helper
+function insertMd(before, after) {
+  var ta = document.getElementById('content');
+  var start = ta.selectionStart, end = ta.selectionEnd;
+  var sel = ta.value.substring(start, end);
+  ta.value = ta.value.substring(0, start) + before + sel + after + ta.value.substring(end);
+  ta.focus();
+  ta.selectionStart = start + before.length;
+  ta.selectionEnd = start + before.length + sel.length;
+  ta.dispatchEvent(new Event('input'));
+}
+
+// Auto-save to localStorage
+(function(){
+  var form = document.getElementById('submitForm');
+  var key = 'nrr-draft';
+  var hint = document.getElementById('autosaveHint');
+  var fields = ['title','discipline','section','content','value_note','pen_name'];
+
+  function saveDraft(){
+    var data = {};
+    fields.forEach(function(f){
+      var el = document.getElementById(f);
+      if(el) data[f] = el.value;
+    });
+    localStorage.setItem(key, JSON.stringify(data));
+    if(hint) { hint.textContent = '草稿已自动保存'; setTimeout(function(){ hint.textContent=''; }, 2000); }
+  }
+
+  function loadDraft(){
+    try{
+      var d = JSON.parse(localStorage.getItem(key));
+      if(!d) return;
+      var hasContent = false;
+      fields.forEach(function(f){
+        var el = document.getElementById(f);
+        if(el && d[f] && !el.value){
+          el.value = d[f];
+          hasContent = true;
+        }
+      });
+      if(hasContent && hint) hint.textContent = '已恢复上次草稿';
+    }catch(e){}
+  }
+
+  // Only load draft if form is empty (no server-side form data and not success page)
+  var isSuccess = '<%= typeof success !== "undefined" && success ? "1" : "" %>';
+  if(!isSuccess) loadDraft();
+
+  fields.forEach(function(f){
+    var el = document.getElementById(f);
+    if(el) el.addEventListener('input', function(){ clearTimeout(window._saveTimer); window._saveTimer = setTimeout(saveDraft, 2000); });
+  });
+
+  if(form) form.addEventListener('submit', function(){ localStorage.removeItem(key); });
+  if(isSuccess) localStorage.removeItem(key);
+})();
 </script>
