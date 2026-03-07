@@ -5,7 +5,6 @@ const MySQLStore = require('express-mysql-session')(session);
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const { marked } = require('marked');
 const { initDB } = require('./db/init');
 const { STATUS_LABELS, RISK_LABELS, SECTIONS, STATUSES, estimateReadingTime } = require('./config/constants');
 
@@ -20,12 +19,20 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(express.json({ limit: '2mb' }));
 
-marked.setOptions({
-  gfm: true,
-  breaks: true,
-  headerIds: false,
-  mangle: false,
-});
+let markedLib = null;
+
+async function ensureMarked() {
+  if (markedLib) return markedLib;
+  const mod = await import('marked');
+  markedLib = mod.marked || mod.default || mod;
+  markedLib.setOptions({
+    gfm: true,
+    breaks: true,
+    headerIds: false,
+    mangle: false,
+  });
+  return markedLib;
+}
 
 const submitLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -47,7 +54,10 @@ function escapeHtml(text) {
 function renderMarkdown(text) {
   if (!text) return '';
   const safeText = escapeHtml(text);
-  return marked.parse(safeText);
+  if (!markedLib) {
+    return safeText.replace(/\n/g, '<br>');
+  }
+  return markedLib.parse(safeText);
 }
 
 function csrfCheck(req, res, next) {
@@ -63,6 +73,7 @@ function csrfCheck(req, res, next) {
 }
 
 async function start() {
+  await ensureMarked();
   const pool = await initDB();
 
   const sessionStore = new MySQLStore({
