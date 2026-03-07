@@ -1,151 +1,38 @@
-﻿<%- include('partials/head', { pageTitle: article.title, pageDesc: (article.content || '').substring(0, 150), ogType: 'article' }) %>
+﻿<%- include('partials/head', { pageTitle: article.renderedTitle, pageDesc: article.renderedExcerpt, ogType: 'article' }) %>
 <%- include('partials/nav') %>
-
 <header class="page-header reading-header">
   <div class="container article-shell">
-    <p class="page-header__label">Archive No. <%= article.submission_no %></p>
-    <h1 class="page-header__title reading-title"><%= article.title %></h1>
-    <div class="article-detail__meta reading-meta">
-      <span><%= article.section %></span>
-      <span><%= article.discipline %></span>
-      <span><%= article.published_at ? article.published_at.substring(0,10) : article.created_at.substring(0,10) %></span>
-      <span>约 <%= readingTime %> 分钟阅读</span>
-      <span><%= article.view_count || 0 %> 次阅读</span>
-    </div>
+    <p class="page-header__label"><%= article.issue_label ? `${article.issue_label} · ${article.season || ''} ${article.year || ''}` : `Archive No. ${article.submission_no}` %></p>
+    <h1 class="page-header__title reading-title"><%= article.renderedTitle %></h1>
+    <% if (article.renderedDeck) { %><p class="page-header__sub reading-deck"><%= article.renderedDeck %></p><% } %>
+    <div class="article-detail__meta reading-meta"><span><%= article.section %></span><span><%= article.discipline %></span><span><%= article.published_at ? article.published_at.substring(0,10) : article.created_at.substring(0,10) %></span><span>约 <%= readingTime %> 分钟阅读</span><span><%= article.view_count || 0 %> 次阅读</span></div>
   </div>
 </header>
-
 <main class="section reading-page">
   <div class="container article-shell article-shell--reading">
     <aside class="reading-aside fade-in">
       <a href="javascript:history.back()" class="article-detail__back">← 返回</a>
-      <div class="reading-card reading-card--mobile-title">
-        <div class="reading-card__label">文章信息</div>
-        <div class="reading-mobile-meta">
-          <span><%= article.section %></span>
-          <span><%= article.discipline %></span>
-          <span>约 <%= readingTime %> 分钟阅读</span>
-        </div>
-      </div>
-      <div class="reading-card">
-        <div class="reading-card__label">作者</div>
-        <div><%= article.author_mode === 'anonymous' ? '匿名' : (article.pen_name || '匿名') %></div>
-      </div>
-      <div class="reading-card">
-        <div class="reading-card__label">标签</div>
-        <div class="article-tags-row compact-tags"><%- include('partials/tags', { a: article }) %></div>
-      </div>
-      <div class="reading-card">
-        <div class="reading-card__label">会员动作</div>
-        <% if (currentUser) { const currentTier = memberTierMeta(currentUser.member_tier); %>
-        <div class="reading-member-meta">
-          <span class="tier-badge tier-badge--compact <%= currentTier.className %>"><%= currentTier.label %></span>
-          <p>已登录会员可收藏、追踪投稿，并同步到工作台。</p>
-        </div>
-        <form method="POST" action="/article/<%= article.id %>/favorite">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <button class="member-action-btn" type="submit"><%= isFavorited ? '取消收藏' : '收藏文章' %></button>
-        </form>
-        <% } else { %>
-        <a href="/login?next=<%= encodeURIComponent('/article/' + article.id) %>" class="member-action-link">登录后收藏并同步工作台</a>
-        <% } %>
-      </div>
+      <div class="reading-card reading-card--mobile-title"><div class="reading-card__label">文章信息</div><div class="reading-mobile-meta"><span><%= article.section %></span><span><%= article.discipline %></span><span>约 <%= readingTime %> 分钟阅读</span></div></div>
+      <div class="reading-card"><div class="reading-card__label">刊标</div><div><%= article.publication_label || article.issue_label || '馆藏版未命名' %></div></div>
+      <div class="reading-card"><div class="reading-card__label">作者</div><div><%= article.author_mode === 'anonymous' ? '匿名' : (article.pen_name || '匿名') %></div></div>
+      <div class="reading-card"><div class="reading-card__label">标签</div><div class="article-tags-row compact-tags"><%- include('partials/tags', { a: article }) %></div></div>
+      <div class="reading-card"><div class="reading-card__label">馆藏版</div><a href="/article/<%= article.id %>/print" class="member-action-link">查看期刊版</a><a href="/article/<%= article.id %>/pdf" class="member-action-link">导出 PDF 视图</a></div>
+      <div class="reading-card"><div class="reading-card__label">会员动作</div><% if (currentUser) { const currentTier = memberTierMeta(currentUser.member_tier); %><div class="reading-member-meta"><span class="tier-badge tier-badge--compact <%= currentTier.className %>"><%= currentTier.label %></span><p>已登录会员可收藏、追踪投稿，并同步到工作台。</p></div><form method="POST" action="/article/<%= article.id %>/favorite"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="member-action-btn" type="submit"><%= isFavorited ? '取消收藏' : '收藏文章' %></button></form><% } else { %><a href="/login?next=<%= encodeURIComponent('/article/' + article.id) %>" class="member-action-link">登录后收藏并同步工作台</a><% } %></div>
     </aside>
-
     <div class="reading-main">
-      <div class="share-bar fade-in">
-        <span class="share-label">分享：</span>
-        <button class="share-btn" onclick="shareToWeibo()" title="分享到微博">微博</button>
-        <button class="share-btn" onclick="copyLink()" title="复制链接" id="copyBtn">复制链接</button>
-        <button class="share-btn" onclick="window.print()" title="打印">打印</button>
-      </div>
-
-      <% if (article.editor_note) { %>
-      <div class="editor-note fade-in">
-        <p class="editor-note__label">编辑部短评</p>
-        <p><%= article.editor_note %></p>
-      </div>
-      <% } %>
-
-      <article class="article-body article-body--longform fade-in">
-        <%- formatContent(article.content) %>
-      </article>
-
-      <% if (article.value_note) { %>
-      <div class="value-note-box fade-in">
-        <span class="value-note-label">投稿者价值说明</span><br>
-        <%= article.value_note %>
-      </div>
-      <% } %>
-
-      <div class="article-tags fade-in">
-        <span class="article-tag"><%= article.section %></span>
-        <span class="article-tag"><%= article.discipline %></span>
-        <% if (article.tags) { parseTags(article.tags).forEach(function(t) { %>
-        <span class="article-tag"><%= t %></span>
-        <% }) } %>
-      </div>
-
-      <% if (related && related.length > 0) { %>
-      <div class="related-section fade-in">
-        <h3 class="related-title">相关阅读</h3>
-        <div class="related-grid">
-          <% related.forEach(function(r) { %>
-          <a href="/article/<%= r.id %>" class="related-card">
-            <span class="related-card__section"><%= r.section %></span>
-            <h4 class="related-card__title"><%= r.title %></h4>
-            <span class="related-card__meta"><%= r.published_at ? r.published_at.substring(0,10) : '' %> · <%= r.view_count || 0 %> 次阅读</span>
-          </a>
-          <% }) %>
-        </div>
-      </div>
-      <% } %>
-
-      <div class="comments-section fade-in" id="comments">
-        <h3 class="comments-title">读者留言 (<%= comments.length %>)</h3>
-
-        <% if (comments.length > 0) { %>
-        <div class="comments-list">
-          <% comments.forEach(function(c) { %>
-          <div class="comment-item">
-            <div class="comment-header">
-              <span class="comment-nick"><%= c.nickname %></span>
-              <span class="comment-time"><%= c.created_at %></span>
-            </div>
-            <div class="comment-body"><%= c.content %></div>
-          </div>
-          <% }) %>
-        </div>
-        <% } else { %>
-        <p class="comments-empty">还没有留言，来写第一条吧。</p>
-        <% } %>
-
-        <form class="comment-form" method="POST" action="/article/<%= article.id %>/comment">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <div class="comment-form__row">
-            <input type="text" name="nickname" placeholder="昵称（可选，默认匿名读者）" class="comment-input" maxlength="100">
-          </div>
-          <div class="comment-form__row">
-            <textarea name="content" placeholder="写下你的想法..." class="comment-textarea" required maxlength="2000" rows="4"></textarea>
-          </div>
-          <button type="submit" class="btn-submit" style="padding:.6rem 2rem;font-size:.82rem">发表评论</button>
-        </form>
-      </div>
+      <% if (articleAnnouncements && articleAnnouncements.length) { %><div class="form-alert form-alert--success fade-in"><strong>馆内广播</strong><p><%= articleAnnouncements[0].title %>：<%= articleAnnouncements[0].subtitle || articleAnnouncements[0].content %></p></div><% } %>
+      <div class="share-bar fade-in"><span class="share-label">分享：</span><button class="share-btn" onclick="shareToWeibo()">微博</button><button class="share-btn" onclick="copyLink()" id="copyBtn">复制链接</button><button class="share-btn" onclick="window.print()">打印</button></div>
+      <% if (article.editor_note) { %><div class="editor-note fade-in"><p class="editor-note__label">编辑部短评</p><p><%= article.editor_note %></p></div><% } %>
+      <article class="article-body article-body--longform fade-in"><%- formatContent(article.renderedContent) %></article>
+      <% if (article.value_note) { %><div class="value-note-box fade-in"><span class="value-note-label">投稿者价值说明</span><br><%= article.value_note %></div><% } %>
+      <div class="article-tags fade-in"><span class="article-tag"><%= article.section %></span><span class="article-tag"><%= article.discipline %></span><% if (article.tags) { parseTags(article.tags).forEach(function(t) { %><span class="article-tag"><%= t %></span><% }) } %></div>
+      <% if (related && related.length > 0) { %><div class="related-section fade-in"><h3 class="related-title">相关阅读</h3><div class="related-grid"><% related.forEach(function(r) { %><a href="/article/<%= r.id %>" class="related-card"><span class="related-card__section"><%= r.section %></span><h4 class="related-card__title"><%= r.display_title || r.title %></h4><span class="related-card__meta"><%= r.published_at ? r.published_at.substring(0,10) : '' %> · <%= r.view_count || 0 %> 次阅读</span></a><% }) %></div></div><% } %>
+      <div class="comments-section fade-in" id="comments"><h3 class="comments-title">读者留言 (<%= comments.length %>)</h3><% if (comments.length > 0) { %><div class="comments-list"><% comments.forEach(function(c) { %><div class="comment-item"><div class="comment-header"><span class="comment-nick"><%= c.nickname %></span><span class="comment-time"><%= c.created_at %></span></div><div class="comment-body"><%= c.content %></div></div><% }) %></div><% } else { %><p class="comments-empty">还没有留言，来写第一条吧。</p><% } %><form class="comment-form" method="POST" action="/article/<%= article.id %>/comment"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><div class="comment-form__row"><input type="text" name="nickname" placeholder="昵称（可选，默认匿名读者）" class="comment-input" maxlength="100"></div><div class="comment-form__row"><textarea name="content" placeholder="写下你的想法..." class="comment-textarea" required maxlength="2000" rows="4"></textarea></div><button type="submit" class="btn-submit" style="padding:.6rem 2rem;font-size:.82rem">发表评论</button></form></div>
     </div>
   </div>
 </main>
-
 <%- include('partials/footer') %>
 <script>
-function shareToWeibo(){
-  var u=encodeURIComponent(location.href),t=encodeURIComponent(document.title);
-  window.open('https://service.weibo.com/share/share.php?url='+u+'&title='+t,'_blank','width=600,height=400');
-}
-function copyLink(){
-  navigator.clipboard.writeText(location.href).then(function(){
-    var b=document.getElementById('copyBtn');
-    b.textContent='已复制';
-    setTimeout(function(){b.textContent='复制链接';},2000);
-  });
-}
+function shareToWeibo(){ var u=encodeURIComponent(location.href),t=encodeURIComponent(document.title); window.open('https://service.weibo.com/share/share.php?url='+u+'&title='+t,'_blank','width=600,height=400'); }
+function copyLink(){ navigator.clipboard.writeText(location.href).then(function(){ var b=document.getElementById('copyBtn'); b.textContent='已复制'; setTimeout(function(){b.textContent='复制链接';},2000); }); }
 </script>

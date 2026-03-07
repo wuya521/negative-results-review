@@ -1,6 +1,5 @@
 ﻿<%- include('partials/head', { pageTitle: '会员工作台' }) %>
 <%- include('partials/nav') %>
-
 <header class="page-header member-hero">
   <div class="container">
     <% const heroTier = memberTierMeta(profile.member_tier); %>
@@ -9,7 +8,7 @@
       <h1 class="page-header__title"><%= profile.display_name %> 的工作台</h1>
       <span class="tier-badge tier-badge--hero <%= heroTier.className %>"><%= heroTier.label %></span>
     </div>
-    <p class="page-header__sub">轻会员负责收藏、通知、投稿归属和申请流转，不改变站点的非正式出版定位，但把个人使用体验做得更完整。</p>
+    <p class="page-header__sub">这里同时承担收藏、通知、投稿归属、会员申请，以及定向广播的接收入口。</p>
     <div class="member-summary-row">
       <span class="member-pill">当前等级：<%= memberTierLabels[profile.member_tier] || profile.member_tier %></span>
       <span class="member-pill">加入时间：<%= profile.created_at ? String(profile.created_at).substring(0, 10) : '' %></span>
@@ -17,228 +16,48 @@
     </div>
   </div>
 </header>
-
 <main class="section member-section">
   <div class="container member-grid">
-    <% if (feedback && feedback.message) { %>
-    <div class="member-panel member-panel--notice member-panel--success fade-in">
-      <strong>操作完成</strong>
-      <p><%= feedback.message %></p>
-    </div>
-    <% } %>
-    <% if (feedback && feedback.error) { %>
-    <div class="member-panel member-panel--notice member-panel--error fade-in">
-      <strong>提交未完成</strong>
-      <p><%= feedback.error %></p>
-    </div>
-    <% } %>
-
-    <section class="member-panel member-panel--profile fade-in">
-      <div class="member-panel__head">
-        <h2>账户信息</h2>
-        <a href="/logout" class="member-link">退出登录</a>
-      </div>
-      <div class="member-profile-meta">
-        <div>
-          <span class="member-k">邮箱</span>
-          <strong><%= profile.email %></strong>
-        </div>
-        <div>
-          <span class="member-k">当前权益</span>
-          <strong>收藏 / 通知 / 投稿归属 / 申请审核 / 身份徽章</strong>
-        </div>
-      </div>
-      <p class="member-note">支持会员与协作会员的授予已经接到后台审核流里；你现在看到的工作台就是后续扩展权益的主入口，不需要再拆新系统。</p>
-    </section>
-
-    <section class="member-panel fade-in">
-      <div class="member-panel__head">
-        <h2>编辑资料</h2>
-        <span class="member-link">同步更新前台昵称</span>
-      </div>
-      <form method="POST" action="/me/profile" class="member-form-stack">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <label class="member-form-field">
-          <span>昵称</span>
-          <input type="text" name="display_name" value="<%= profile.display_name %>" maxlength="80" required>
-        </label>
-        <label class="member-form-field">
-          <span>简介</span>
-          <textarea name="bio" rows="5" maxlength="500" placeholder="写一点你希望后台编辑部看到的自我说明。"><%= profile.bio || '' %></textarea>
-        </label>
-        <button type="submit" class="member-action-btn">保存资料</button>
-      </form>
-    </section>
-
-    <section class="member-panel fade-in">
-      <div class="member-panel__head">
-        <h2>修改密码</h2>
-        <span class="member-link">建议定期更新</span>
-      </div>
-      <form method="POST" action="/me/password" class="member-form-stack">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <label class="member-form-field">
-          <span>旧密码</span>
-          <input type="password" name="old_password" minlength="6" required>
-        </label>
-        <label class="member-form-field">
-          <span>新密码</span>
-          <input type="password" name="new_password" minlength="6" required>
-        </label>
-        <label class="member-form-field">
-          <span>确认新密码</span>
-          <input type="password" name="confirm_password" minlength="6" required>
-        </label>
-        <button type="submit" class="member-action-btn">更新密码</button>
-      </form>
-    </section>
-
+    <% if (dashboardAnnouncements && dashboardAnnouncements.length) { %>
     <section class="member-panel member-panel--wide fade-in">
-      <div class="member-panel__head">
-        <h2>会员申请</h2>
-        <span class="member-link"><%= applications.filter(function(item) { return item.status === 'pending'; }).length %> 条待处理</span>
-      </div>
-      <div class="member-application-grid">
-        <div class="member-application-note">
-          <p>当前支持两类升级：</p>
-          <ul>
-            <li><strong>支持会员</strong>：面向愿意长期支持站点建设和整理工作的读者。</li>
-            <li><strong>投稿协作会员</strong>：面向投稿更频繁、需要更清晰归属和通知流转的作者。</li>
-          </ul>
-        </div>
-        <div>
-          <% if (canApply) { %>
-          <form method="POST" action="/me/applications" class="member-form-stack">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <label class="member-form-field">
-              <span>申请等级</span>
-              <select name="requested_tier">
-                <option value="supporter">支持会员</option>
-                <option value="contributor">投稿协作会员</option>
-              </select>
-            </label>
-            <label class="member-form-field">
-              <span>申请说明</span>
-              <textarea name="reason" rows="6" minlength="12" maxlength="4000" placeholder="说明你为什么希望升级会员身份，以及你希望获得什么样的协作支持。" required></textarea>
-            </label>
-            <button type="submit" class="member-action-btn">提交申请</button>
-          </form>
-          <% } else { %>
-          <p class="member-empty">你已有待审核的会员申请，后台处理完成后会通过站内通知告知。</p>
-          <% } %>
-        </div>
-      </div>
-      <% if (applications.length) { %>
-      <div class="member-list member-list--applications">
-        <% applications.forEach(function(item) { const appTier = memberTierMeta(item.requested_tier); %>
-        <article class="member-item member-item--application">
-          <div>
-            <div class="member-item__eyebrow">提交于 <%= String(item.created_at).substring(0, 16).replace('T', ' ') %></div>
-            <h3><%= memberTierLabels[item.requested_tier] || item.requested_tier %></h3>
-            <p><%= item.reason %></p>
-            <% if (item.admin_note) { %>
-            <p class="member-application-admin-note">审核备注：<%= item.admin_note %></p>
-            <% } %>
-          </div>
-          <div class="member-item__meta-block">
-            <span class="tier-badge tier-badge--compact <%= appTier.className %>"><%= appTier.shortLabel %></span>
-            <span class="member-badge member-badge--<%= item.status %>"><%= ({ pending: '待审核', approved: '已通过', rejected: '未通过' })[item.status] || item.status %></span>
-            <% if (item.reviewer_name) { %>
-            <span class="member-item__meta">审核人：<%= item.reviewer_name %></span>
-            <% } %>
-            <% if (item.reviewed_at) { %>
-            <span class="member-item__meta"><%= String(item.reviewed_at).substring(0, 16).replace('T', ' ') %></span>
-            <% } %>
-          </div>
-        </article>
-        <% }) %>
-      </div>
-      <% } %>
-    </section>
-
-    <section class="member-panel fade-in">
-      <div class="member-panel__head">
-        <h2>我的投稿</h2>
-        <a href="/submit" class="member-link">继续投稿</a>
-      </div>
-      <% if (submissions.length) { %>
-      <div class="member-list">
-        <% submissions.forEach(function(item) { %>
-        <article class="member-item">
-          <div>
-            <div class="member-item__eyebrow"><%= item.submission_no %></div>
-            <h3><%= item.title %></h3>
-            <p><%= item.section %> · <%= statusLabel(item.status) %></p>
-          </div>
-          <div class="member-item__meta"><%= String(item.updated_at).substring(0, 10) %></div>
-        </article>
-        <% }) %>
-      </div>
-      <% } else { %>
-      <p class="member-empty">你还没有与账户绑定的投稿。登录后提交的新稿件会自动出现在这里。</p>
-      <% } %>
-    </section>
-
-    <section class="member-panel fade-in">
-      <div class="member-panel__head">
-        <h2>我的收藏</h2>
-        <a href="/archive" class="member-link">继续阅读</a>
-      </div>
-      <% if (favorites.length) { %>
-      <div class="member-list">
-        <% favorites.forEach(function(item) { %>
-        <a href="/article/<%= item.id %>" class="member-item member-item--link">
-          <div>
-            <div class="member-item__eyebrow">收藏于 <%= String(item.favorited_at).substring(0, 10) %></div>
-            <h3><%= item.title %></h3>
-            <p><%= item.section %></p>
-          </div>
-          <div class="member-item__meta"><%= item.published_at ? String(item.published_at).substring(0, 10) : '' %></div>
-        </a>
-        <% }) %>
-      </div>
-      <% } else { %>
-      <p class="member-empty">还没有收藏。文章页提供收藏按钮，支持会员徽章会同步显示在工作台。</p>
-      <% } %>
-    </section>
-
-    <section class="member-panel member-panel--wide fade-in">
-      <div class="member-panel__head">
-        <h2>站内通知</h2>
-        <% const unreadCount = notifications.filter(function(item) { return !item.is_read; }).length; %>
-        <% if (unreadCount > 0) { %>
-        <form method="POST" action="/notifications/read-all" class="member-inline-form">
-          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <button type="submit" class="member-mark-read member-mark-read--ghost">全部标记已读 (<%= unreadCount %>)</button>
-        </form>
-        <% } else { %>
-        <span class="member-link">0 条未读</span>
-        <% } %>
-      </div>
-      <% if (notifications.length) { %>
+      <div class="member-panel__head"><h2>会员广播</h2><a href="/broadcasts" class="member-link">全部广播</a></div>
       <div class="member-list member-list--notifications">
-        <% notifications.forEach(function(item) { %>
-        <article class="member-item member-item--notification <%= item.is_read ? 'is-read' : '' %>">
+        <% dashboardAnnouncements.forEach(function(item) { %>
+        <article class="member-item member-item--notification">
           <div>
-            <div class="member-item__eyebrow"><%= String(item.created_at).substring(0, 16).replace('T', ' ') %></div>
+            <div class="member-item__eyebrow"><%= item.type %> · <%= item.audience %></div>
             <h3><%= item.title %></h3>
-            <p><%= item.content %></p>
-            <% if (item.link) { %><a class="member-inline-link" href="<%= item.link %>">查看</a><% } %>
+            <p><%= item.subtitle || item.content %></p>
           </div>
-          <% if (!item.is_read) { %>
-          <form method="POST" action="/notifications/<%= item.id %>/read">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button type="submit" class="member-mark-read">标记已读</button>
-          </form>
-          <% } %>
+          <a href="<%= item.cta_link ? '/broadcasts/' + item.id + '/go' : '/broadcasts/' + item.id %>" class="member-inline-link"><%= item.cta_text || '查看' %></a>
         </article>
         <% }) %>
       </div>
-      <% } else { %>
-      <p class="member-empty">还没有通知。</p>
-      <% } %>
     </section>
+    <% } %>
+    <% if (feedback && feedback.message) { %><div class="member-panel member-panel--notice member-panel--success fade-in"><strong>操作完成</strong><p><%= feedback.message %></p></div><% } %>
+    <% if (feedback && feedback.error) { %><div class="member-panel member-panel--notice member-panel--error fade-in"><strong>提交未完成</strong><p><%= feedback.error %></p></div><% } %>
+    <section class="member-panel member-panel--profile fade-in">
+      <div class="member-panel__head"><h2>账户信息</h2><a href="/logout" class="member-link">退出登录</a></div>
+      <div class="member-profile-meta"><div><span class="member-k">邮箱</span><strong><%= profile.email %></strong></div><div><span class="member-k">当前权益</span><strong>收藏 / 通知 / 投稿归属 / 申请审核 / 身份徽章</strong></div></div>
+      <p class="member-note">支持会员与协作会员的授予已经接到后台审核流里；你现在看到的工作台也是馆内广播的定向入口。</p>
+    </section>
+    <section class="member-panel fade-in">
+      <div class="member-panel__head"><h2>编辑资料</h2><span class="member-link">同步更新前台昵称</span></div>
+      <form method="POST" action="/me/profile" class="member-form-stack"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="member-form-field"><span>昵称</span><input type="text" name="display_name" value="<%= profile.display_name %>" maxlength="80" required></label><label class="member-form-field"><span>简介</span><textarea name="bio" rows="5" maxlength="500"><%= profile.bio || '' %></textarea></label><button type="submit" class="member-action-btn">保存资料</button></form>
+    </section>
+    <section class="member-panel fade-in">
+      <div class="member-panel__head"><h2>修改密码</h2><span class="member-link">建议定期更新</span></div>
+      <form method="POST" action="/me/password" class="member-form-stack"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="member-form-field"><span>旧密码</span><input type="password" name="old_password" minlength="6" required></label><label class="member-form-field"><span>新密码</span><input type="password" name="new_password" minlength="6" required></label><label class="member-form-field"><span>确认新密码</span><input type="password" name="confirm_password" minlength="6" required></label><button type="submit" class="member-action-btn">更新密码</button></form>
+    </section>
+    <section class="member-panel member-panel--wide fade-in">
+      <div class="member-panel__head"><h2>会员申请</h2><span class="member-link"><%= applications.filter(function(item) { return item.status === 'pending'; }).length %> 条待处理</span></div>
+      <div class="member-application-grid"><div class="member-application-note"><p>当前支持两类升级：</p><ul><li><strong>支持会员</strong>：面向愿意长期支持站点建设和整理工作的读者。</li><li><strong>投稿协作会员</strong>：面向投稿更频繁、需要更清晰归属和通知流转的作者。</li></ul></div><div><% if (canApply) { %><form method="POST" action="/me/applications" class="member-form-stack"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><label class="member-form-field"><span>申请等级</span><select name="requested_tier"><option value="supporter">支持会员</option><option value="contributor">投稿协作会员</option></select></label><label class="member-form-field"><span>申请说明</span><textarea name="reason" rows="6" minlength="12" maxlength="4000" required></textarea></label><button type="submit" class="member-action-btn">提交申请</button></form><% } else { %><p class="member-empty">你已有待审核的会员申请，后台处理完成后会通过站内通知告知。</p><% } %></div></div>
+      <% if (applications.length) { %><div class="member-list member-list--applications"><% applications.forEach(function(item) { const appTier = memberTierMeta(item.requested_tier); %><article class="member-item member-item--application"><div><div class="member-item__eyebrow">提交于 <%= String(item.created_at).substring(0, 16).replace('T', ' ') %></div><h3><%= memberTierLabels[item.requested_tier] || item.requested_tier %></h3><p><%= item.reason %></p><% if (item.admin_note) { %><p class="member-application-admin-note">审核备注：<%= item.admin_note %></p><% } %></div><div class="member-item__meta-block"><span class="tier-badge tier-badge--compact <%= appTier.className %>"><%= appTier.shortLabel %></span><span class="member-badge member-badge--<%= item.status %>"><%= ({ pending: '待审核', approved: '已通过', rejected: '未通过' })[item.status] || item.status %></span></div></article><% }) %></div><% } %>
+    </section>
+    <section class="member-panel fade-in"><div class="member-panel__head"><h2>我的投稿</h2><a href="/submit" class="member-link">继续投稿</a></div><% if (submissions.length) { %><div class="member-list"><% submissions.forEach(function(item) { %><article class="member-item"><div><div class="member-item__eyebrow"><%= item.submission_no %></div><h3><%= item.display_title || item.title %></h3><p><%= item.section %> · <%= statusLabel(item.status) %></p></div><div class="member-item__meta"><%= String(item.updated_at).substring(0, 10) %></div></article><% }) %></div><% } else { %><p class="member-empty">你还没有与账户绑定的投稿。</p><% } %></section>
+    <section class="member-panel fade-in"><div class="member-panel__head"><h2>我的收藏</h2><a href="/archive" class="member-link">继续阅读</a></div><% if (favorites.length) { %><div class="member-list"><% favorites.forEach(function(item) { %><a href="/article/<%= item.id %>" class="member-item member-item--link"><div><div class="member-item__eyebrow">收藏于 <%= String(item.favorited_at).substring(0, 10) %></div><h3><%= item.display_title || item.title %></h3><p><%= item.section %></p></div><div class="member-item__meta"><%= item.published_at ? String(item.published_at).substring(0, 10) : '' %></div></a><% }) %></div><% } else { %><p class="member-empty">还没有收藏。</p><% } %></section>
+    <section class="member-panel member-panel--wide fade-in"><div class="member-panel__head"><h2>站内通知</h2><% const unreadCount = notifications.filter(function(item) { return !item.is_read; }).length; %><% if (unreadCount > 0) { %><form method="POST" action="/notifications/read-all" class="member-inline-form"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="member-mark-read member-mark-read--ghost">全部标记已读 (<%= unreadCount %>)</button></form><% } else { %><span class="member-link">0 条未读</span><% } %></div><% if (notifications.length) { %><div class="member-list member-list--notifications"><% notifications.forEach(function(item) { %><article class="member-item member-item--notification <%= item.is_read ? 'is-read' : '' %>"><div><div class="member-item__eyebrow"><%= String(item.created_at).substring(0, 16).replace('T', ' ') %></div><h3><%= item.title %></h3><p><%= item.content %></p><% if (item.link) { %><a class="member-inline-link" href="<%= item.link %>">查看</a><% } %></div><% if (!item.is_read) { %><form method="POST" action="/notifications/<%= item.id %>/read"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit" class="member-mark-read">标记已读</button></form><% } %></article><% }) %></div><% } else { %><p class="member-empty">还没有通知。</p><% } %></section>
   </div>
 </main>
-
 <%- include('partials/footer') %>

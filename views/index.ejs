@@ -1,26 +1,69 @@
 ﻿<%- include('partials/head', { pageTitle: '' }) %>
 <%- include('partials/nav') %>
 
-<section class="hero hero--editorial" id="hero">
-  <div class="hero-content">
-    <p class="hero-issue">ISSUE 001 · 创刊号 · 2026 春</p>
+<section class="hero hero--editorial hero--broadcast" id="hero">
+  <div class="hero-content hero-content--broadcast">
+    <p class="hero-issue"><%= currentIssue ? `${currentIssue.issue_label} · 创刊号 · ${currentIssue.year} ${currentIssue.season || ''}` : 'ISSUE 001 · 2026' %></p>
     <div class="hero-rule"></div>
-    <h1 class="hero-title">负 结 果 通 讯</h1>
-    <p class="hero-subtitle">Negative Results Review</p>
-    <p class="hero-subtitle-alt">Archive of Failed Methods and Honest Research Narratives</p>
-    <div class="hero-rule"></div>
-    <blockquote class="hero-quote">“不是所有研究都能成功，但都值得被记录。”</blockquote>
+    <div class="broadcast-stage fade-in" id="broadcastStage">
+      <div class="broadcast-stage__frame">
+        <div class="broadcast-stage__head">
+          <span class="broadcast-stage__label">档案馆播报机</span>
+          <span class="broadcast-stage__meta"><%= broadcasts.length %> 条广播在线</span>
+        </div>
+        <div class="broadcast-stage__screen">
+          <% if (broadcasts.length) { %>
+            <% broadcasts.forEach(function(item, index) { %>
+            <article class="broadcast-slide <%= index === 0 ? 'is-active' : '' %>" data-broadcast-slide>
+              <div class="broadcast-slide__eyebrow">
+                <span><%= item.type %></span>
+                <span>BROADCAST <%= String(index + 1).padStart(3, '0') %></span>
+              </div>
+              <h2 class="broadcast-slide__title"><%= item.title %></h2>
+              <% if (item.subtitle) { %><p class="broadcast-slide__subtitle"><%= item.subtitle %></p><% } %>
+              <div class="broadcast-slide__body"><%= item.content %></div>
+              <div class="broadcast-slide__actions">
+                <% if (item.cta_link) { %>
+                <a href="/broadcasts/<%= item.id %>/go" class="hero-cta"> <%= item.cta_text || '查看广播' %> </a>
+                <% } else { %>
+                <a href="/broadcasts/<%= item.id %>" class="hero-cta">查看广播</a>
+                <% } %>
+                <a href="/broadcasts" class="hero-cta hero-cta--secondary">历史广播馆</a>
+              </div>
+            </article>
+            <% }) %>
+          <% } else { %>
+            <article class="broadcast-slide is-active" data-broadcast-slide>
+              <div class="broadcast-slide__eyebrow"><span>editorial</span><span>STANDBY</span></div>
+              <h2 class="broadcast-slide__title">档案馆播报机待命中</h2>
+              <p class="broadcast-slide__subtitle">当前没有有效广播，首屏将保持创刊号静默状态。</p>
+              <div class="broadcast-slide__actions">
+                <a href="/archive" class="hero-cta">进入档案室</a>
+                <a href="/submit" class="hero-cta hero-cta--secondary">前往投稿</a>
+              </div>
+            </article>
+          <% } %>
+        </div>
+        <% if (broadcasts.length > 1) { %>
+        <div class="broadcast-stage__controls">
+          <button type="button" class="broadcast-nav" id="broadcastPrev">上一条</button>
+          <div class="broadcast-dots" id="broadcastDots">
+            <% broadcasts.forEach(function(item, index) { %>
+            <button type="button" class="broadcast-dot <%= index === 0 ? 'is-active' : '' %>" data-broadcast-dot="<%= index %>"></button>
+            <% }) %>
+          </div>
+          <button type="button" class="broadcast-nav" id="broadcastNext">下一条</button>
+        </div>
+        <% } %>
+      </div>
+    </div>
     <div class="hero-cta-row">
       <a href="#latest" class="hero-cta">进入档案室</a>
-      <% if (currentUser) { %>
-      <a href="/me" class="hero-cta hero-cta--secondary">进入会员工作台</a>
-      <% } else { %>
-      <a href="/register" class="hero-cta hero-cta--secondary">注册轻会员</a>
-      <% } %>
+      <a href="/submit" class="hero-cta hero-cta--secondary">投稿并整理为馆藏排版</a>
     </div>
   </div>
   <div class="hero-meta">
-    <span>非正式学术交流与电子选刊平台</span>
+    <span><%= currentIssue ? currentIssue.theme_title : 'Archive of Failed Methods and Honest Research Narratives' %></span>
     <span>Est. 2026</span>
   </div>
 </section>
@@ -34,21 +77,19 @@
         <span class="section-en">ABOUT THIS PUBLICATION</span>
       </div>
       <div class="intro-content fade-in">
-        <p>《负结果通讯》记录科研里常被省略的部分：失败实验、被拒稿件、方法翻车、选题夭折，以及研究者在过程中的真实困惑与反思。</p>
-        <p>它不是正式期刊，也不试图冒充正式期刊。它更像一间整理得比较克制的档案室，把那些本来会消失的经验保留下来，给后来者少走一点弯路。</p>
-        <p class="intro-note">平台声明：所刊内容不用于职称评审、成果认定或正式学术评价，仅用于研究经验分享、方法归档与学术文化展示。</p>
+        <p>《负结果通讯》记录科研里常被省略的部分：失败实验、被拒稿件、方法翻车、选题夭折，以及研究者在过程中真实而克制的情绪。</p>
+        <p>它不是正式期刊，也不试图冒充正式期刊。它更像一间整理得很克制的档案室，把那些本来会消失的经验保留下来。</p>
+        <% if (currentIssue) { %>
+        <p class="intro-note">本期馆藏：<strong><%= currentIssue.theme_title %></strong>。<%= currentIssue.theme_note || '' %></p>
+        <% } %>
       </div>
     </div>
     <aside class="home-side-note fade-in">
       <div class="home-side-note__box">
-        <span class="home-side-note__label">MEMBER NOTE</span>
-        <h3>轻会员不是社区绑架</h3>
-        <p>会员系统只做三件事：收藏、通知、投稿归属。它服务阅读和投稿秩序，不打断你作为匿名叙述者的自由。</p>
-        <% if (!currentUser) { %>
-        <a href="/register" class="home-side-note__link">创建账号</a>
-        <% } else { %>
-        <a href="/me" class="home-side-note__link">查看工作台</a>
-        <% } %>
+        <span class="home-side-note__label">CURRENT ISSUE</span>
+        <h3><%= currentIssue ? currentIssue.issue_label : 'ISSUE 001' %></h3>
+        <p><%= currentIssue ? (currentIssue.theme_title || '创刊号主题筹备中') : '创刊号主题筹备中' %></p>
+        <a href="/broadcasts" class="home-side-note__link">查看广播馆</a>
       </div>
     </aside>
   </div>
@@ -63,19 +104,16 @@
         <span class="section-en">SPECIAL ISSUE</span>
       </div>
       <div class="featured-box fade-in">
-        <p class="featured-label">Vol. 1 · No. 1 · 专题策划</p>
-        <h3 class="featured-title">当 p 值卡在 0.05 的边缘</h3>
-        <p class="featured-desc">统计显著性的边界焦虑，往往不是技术问题，而是叙述权问题。这里收录那些差一点就被称为“有意义”的研究故事。</p>
+        <p class="featured-label"><%= currentIssue ? `${currentIssue.issue_label} · ${currentIssue.season || ''} ${currentIssue.year}` : 'Vol. 1 · No. 1' %></p>
+        <h3 class="featured-title"><%= currentIssue ? currentIssue.theme_title : '当 p 值停在 0.05 的门外' %></h3>
+        <p class="featured-desc"><%= currentIssue ? currentIssue.theme_note : '统计显著性的边界焦虑，往往不是技术问题，而是叙述权问题。' %></p>
         <% if (featured.length > 0) { %>
         <div class="home-featured-links">
           <% featured.forEach(function(a) { %>
-          <a href="/article/<%= a.id %>" class="home-featured-link">
-            <span>◆</span><%= a.title %>
-          </a>
+          <a href="/article/<%= a.id %>" class="home-featured-link"><span>◆</span><%= a.display_title || a.title %></a>
           <% }) %>
         </div>
         <% } %>
-        <p class="featured-meta">Archive Ref: NRR-SI-001 · 2026.03</p>
       </div>
     </div>
 
@@ -92,7 +130,7 @@
           {idx:'COL.03',name:'方法翻车实录',desc:'理论上完美，实践中一地鸡毛'},
           {idx:'COL.04',name:'Reviewer 鬼话档案',desc:'审稿意见里的逻辑黑洞'},
           {idx:'COL.05',name:'选题尸检报告',desc:'复盘胎死腹中的研究构想'},
-          {idx:'COL.06',name:'学术情绪标本室',desc:'科研过程中的真实情绪'}
+          {idx:'COL.06',name:'学术情绪标本室',desc:'科研过程中真实的心绪标本'}
         ]; colData.forEach(function(c) { %>
         <a href="/archive?section=<%= encodeURIComponent(c.name) %>" class="col-card fade-in" data-index="<%= c.idx %>">
           <h3 class="col-card__title"><%= c.name %></h3>
@@ -109,7 +147,7 @@
   <div class="container">
     <div class="section-header fade-in">
       <span class="section-number">§ 04</span>
-      <h2 class="section-title">最新入选</h2>
+      <h2 class="section-title">最新入馆</h2>
       <span class="section-en">RECENT ARCHIVES</span>
     </div>
     <% if (articles.length > 0) { %>
@@ -118,8 +156,8 @@
       <a href="/article/<%= a.id %>" class="article-item article-item--rich">
         <span class="article-index"><%= String(i+1).padStart(2,'0') %></span>
         <div>
-          <h3 class="article-title"><%= a.title %></h3>
-          <p class="article-excerpt">这篇稿件已进入公开档案。适合想快速了解一个失败经验、审稿困境或方法教训的读者继续深入阅读。</p>
+          <h3 class="article-title"><%= a.display_title || a.title %></h3>
+          <p class="article-excerpt"><%= a.excerpt || a.deck || '这篇稿件已进入公开档案，适合继续深入阅读。' %></p>
           <div class="article-tags-row"><%- include('partials/tags', {a: a}) %></div>
         </div>
         <div class="article-meta-side article-meta-side--rich">
@@ -140,32 +178,25 @@
   </div>
 </section>
 
-<section class="section section--alt" id="principles">
-  <div class="container">
-    <div class="section-header fade-in">
-      <span class="section-number">§ 05</span>
-      <h2 class="section-title">编辑原则</h2>
-      <span class="section-en">EDITORIAL PRINCIPLES</span>
-    </div>
-    <div class="principles-grid fade-in">
-      <div class="principle-item"><span class="principle-num">01</span><p class="principle-text"><strong>真实优先</strong>，鼓励如实记录，不鼓励虚构和夸张。</p></div>
-      <div class="principle-item"><span class="principle-num">02</span><p class="principle-text"><strong>匿名保护</strong>，默认尊重投稿者的隐匿边界。</p></div>
-      <div class="principle-item"><span class="principle-num">03</span><p class="principle-text"><strong>善意批评</strong>，只讨论现象与结构，不做个人攻击。</p></div>
-      <div class="principle-item"><span class="principle-num">04</span><p class="principle-text"><strong>学术伦理</strong>，避免泄露未发表数据与可识别信息。</p></div>
-      <div class="principle-item"><span class="principle-num">05</span><p class="principle-text"><strong>非正式出版</strong>，所有内容仅代表个人经历与观点。</p></div>
-      <div class="principle-item"><span class="principle-num">06</span><p class="principle-text"><strong>长期归档</strong>，入选内容会持续开放，形成可检索的失败经验库。</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="section section--dark" id="submit-cta">
-  <div class="container">
-    <div class="cta-content fade-in">
-      <h2>把那些本来会消失的经验留下来</h2>
-      <p>可以是一段实验失败记录，一篇被反复退回的稿件，或者一句让你哭笑不得的审稿意见。只要它有价值，就值得被存档。</p>
-      <a href="/submit" class="btn-primary">前往投稿</a>
-    </div>
-  </div>
-</section>
-
 <%- include('partials/footer') %>
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('[data-broadcast-slide]'));
+  var dots = Array.prototype.slice.call(document.querySelectorAll('[data-broadcast-dot]'));
+  if (!slides.length) return;
+  var current = 0;
+  function render(index) {
+    current = index;
+    slides.forEach(function(slide, i) { slide.classList.toggle('is-active', i === index); });
+    dots.forEach(function(dot, i) { dot.classList.toggle('is-active', i === index); });
+  }
+  var prev = document.getElementById('broadcastPrev');
+  var next = document.getElementById('broadcastNext');
+  if (prev) prev.addEventListener('click', function(){ render((current - 1 + slides.length) % slides.length); });
+  if (next) next.addEventListener('click', function(){ render((current + 1) % slides.length); });
+  dots.forEach(function(dot, index){ dot.addEventListener('click', function(){ render(index); }); });
+  if (slides.length > 1) {
+    setInterval(function(){ render((current + 1) % slides.length); }, 7000);
+  }
+})();
+</script>

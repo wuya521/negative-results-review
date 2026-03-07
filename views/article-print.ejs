@@ -1,0 +1,53 @@
+﻿<%- include('partials/head', { pageTitle: `${article.renderedTitle} / 馆藏版`, pageDesc: article.renderedExcerpt, ogType: 'article' }) %>
+<%- include('partials/nav') %>
+<main class="print-issue-page">
+  <div class="print-sheet">
+    <header class="print-sheet__head">
+      <div>
+        <div class="print-sheet__kicker"><%= article.issue_label || 'ISSUE 001' %> · <%= article.season || 'SPRING' %> <%= article.year || '2026' %></div>
+        <h1 class="print-sheet__publication">负结果通讯</h1>
+      </div>
+      <div class="print-sheet__stamp"><%= article.publication_label || 'ARCHIVE EDITION' %></div>
+    </header>
+
+    <section class="print-sheet__hero">
+      <div class="print-sheet__meta">
+        <span><%= article.section %></span>
+        <span><%= article.discipline %></span>
+        <span>约 <%= readingTime %> 分钟阅读</span>
+        <span><%= article.submission_no %></span>
+      </div>
+      <h1 class="print-sheet__title"><%= article.renderedTitle %></h1>
+      <% if (article.renderedDeck) { %>
+      <p class="print-sheet__deck"><%= article.renderedDeck %></p>
+      <% } %>
+      <div class="print-sheet__byline">
+        <span>作者：<%= article.author_mode === 'anonymous' ? '匿名' : (article.pen_name || '匿名') %></span>
+        <span>刊载时间：<%= article.published_at ? String(article.published_at).substring(0, 10) : String(article.created_at).substring(0, 10) %></span>
+      </div>
+    </section>
+
+    <section class="print-sheet__body article-body article-body--print">
+      <%- formatContent(article.renderedContent) %>
+    </section>
+
+    <% if (article.value_note) { %>
+    <section class="print-sheet__note">
+      <span class="print-sheet__note-label">投稿者价值说明</span>
+      <p><%= article.value_note %></p>
+    </section>
+    <% } %>
+
+    <footer class="print-sheet__foot">
+      <div>
+        <strong><%= article.issue_label || 'ISSUE 001' %></strong>
+        <% if (article.theme_title) { %><span> · <%= article.theme_title %></span><% } %>
+      </div>
+      <div class="print-sheet__foot-actions no-print">
+        <a href="/article/<%= article.id %>" class="home-outline-btn">返回阅读页</a>
+        <button type="button" class="home-outline-btn home-outline-btn--dark" onclick="window.print()">打印 / 导出 PDF</button>
+      </div>
+    </footer>
+  </div>
+</main>
+<%- include('partials/footer') %>

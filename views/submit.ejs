@@ -1,73 +1,49 @@
 ﻿<%- include('partials/head', { pageTitle: '投稿' }) %>
 <%- include('partials/nav') %>
-
 <header class="page-header">
   <div class="container">
     <p class="page-header__label">Submit / 投稿</p>
     <h1 class="page-header__title">向编辑部投稿</h1>
-    <p class="page-header__sub">无论是失败的实验、被拒的论文，还是一段真实的科研情绪，只要你觉得它值得被记录，就可以在这里提交。会员投稿会自动归入工作台，便于后续追踪。</p>
+    <p class="page-header__sub">系统支持前台一键整理为馆藏排版。你提交的是原稿，后台会保留原稿、整理稿和发布稿三个层次。</p>
+    <% if (currentIssue) { %><div class="issue-strip">本期刊标：<strong><%= currentIssue.issue_label %></strong> · <%= currentIssue.theme_title %></div><% } %>
   </div>
 </header>
-
 <main class="section">
   <div class="container">
-
     <% if (typeof success !== 'undefined' && success) { %>
     <div class="form-alert form-alert--success">
       <h3>投稿已成功提交</h3>
       <p>编辑部将在 7 个工作日内审阅。请勿重复提交同一份内容，系统会优先保留第一次有效提交。</p>
-      <% if (typeof submissionNo !== 'undefined' && submissionNo) { %>
-      <div class="submission-ticket">
-        <span>你的稿件编号</span>
-        <strong><%= submissionNo %></strong>
-      </div>
-      <p>
-        你可以在 <a href="/track?no=<%= submissionNo %>">稿件追踪</a> 页面查询进度。
-        <% if (typeof duplicateDetected !== 'undefined' && duplicateDetected) { %>
-        <span class="submit-success-note">系统已拦截一次重复提交，请直接使用原编号继续追踪。</span>
-        <% } %>
-      </p>
+      <% if (submissionNo) { %>
+      <div class="submission-ticket"><span>你的稿件编号</span><strong><%= submissionNo %></strong></div>
+      <p>你可以在 <a href="/track?no=<%= submissionNo %>">稿件追踪</a> 页面查询进度。<% if (duplicateDetected) { %><span class="submit-success-note">系统已拦截一次重复提交，请直接使用原编号继续追踪。</span><% } %></p>
       <% } %>
     </div>
     <% } %>
-
-    <% if (typeof error !== 'undefined' && error) { %>
-    <div class="form-alert form-alert--error"><%= error %></div>
-    <% } %>
-
-    <% if (memberHint) { %>
-    <div class="member-banner">
-      <strong>会员投稿提示</strong>
-      <span><%= memberHint %></span>
-    </div>
-    <% } %>
+    <% if (error) { %><div class="form-alert form-alert--error"><%= error %></div><% } %>
+    <% if (memberHint) { %><div class="member-banner"><strong>会员投稿提示</strong><span><%= memberHint %></span></div><% } %>
 
     <div class="form-wrapper form-wrapper--enhanced">
       <form class="form-main" method="POST" action="/submit" id="submitForm" novalidate>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <input type="hidden" name="submit_token" value="<%= submitToken %>">
-
         <div class="form-group">
           <label class="form-label" for="title">稿件标题 <span class="required">*</span></label>
-          <input class="form-input" type="text" id="title" name="title" required value="<%= typeof form !== 'undefined' && form && form.title ? form.title : '' %>">
+          <input class="form-input" type="text" id="title" name="title" required value="<%= form && form.title ? form.title : '' %>">
         </div>
-
         <div class="form-group auth-grid">
           <div>
             <label class="form-label" for="discipline">学科方向 <span class="required">*</span></label>
-            <input class="form-input" type="text" id="discipline" name="discipline" required value="<%= typeof form !== 'undefined' && form && form.discipline ? form.discipline : '' %>">
+            <input class="form-input" type="text" id="discipline" name="discipline" required value="<%= form && form.discipline ? form.discipline : '' %>">
           </div>
           <div>
             <label class="form-label" for="section">投稿栏目 <span class="required">*</span></label>
             <select class="form-select" id="section" name="section" required>
-              <option value="" disabled <%= !(typeof form !== 'undefined' && form && form.section) ? 'selected' : '' %>>请选择栏目</option>
-              <% sections.forEach(function(s) { %>
-              <option value="<%= s %>" <%= (typeof form !== 'undefined' && form && form.section === s) ? 'selected' : '' %>><%= s %></option>
-              <% }) %>
+              <option value="" disabled <%= !(form && form.section) ? 'selected' : '' %>>请选择栏目</option>
+              <% sections.forEach(function(s) { %><option value="<%= s %>" <%= form && form.section === s ? 'selected' : '' %>><%= s %></option><% }) %>
             </select>
           </div>
         </div>
-
         <div class="form-group">
           <label class="form-label" for="author_mode">署名方式</label>
           <select class="form-select" id="author_mode" name="author_mode">
@@ -75,88 +51,60 @@
             <option value="pen_name" <%= form && form.author_mode === 'pen_name' ? 'selected' : '' %>>使用笔名</option>
             <option value="real_name" <%= form && form.author_mode === 'real_name' ? 'selected' : '' %>>使用真实姓名</option>
           </select>
-          <span class="form-hint">会员身份仅用于站内归属，不会覆盖你选择的公开署名方式。</span>
         </div>
-
         <div class="form-group" id="penNameGroup" style="display:none">
           <label class="form-label" for="pen_name">笔名 / 姓名</label>
-          <input class="form-input" type="text" id="pen_name" name="pen_name" value="<%= typeof form !== 'undefined' && form && form.pen_name ? form.pen_name : '' %>">
+          <input class="form-input" type="text" id="pen_name" name="pen_name" value="<%= form && form.pen_name ? form.pen_name : '' %>">
         </div>
-
         <div class="form-group">
           <label class="form-label" for="content">正文内容 <span class="required">*</span></label>
           <div class="editor-toolbar">
-            <button type="button" class="editor-btn" onclick="insertMd('**','**')" title="加粗">B</button>
-            <button type="button" class="editor-btn" onclick="insertMd('*','*')" title="斜体"><em>I</em></button>
-            <button type="button" class="editor-btn" onclick="insertMd('\n> ','')" title="引用">&gt;</button>
-            <button type="button" class="editor-btn" onclick="insertMd('\n## ','')" title="小标题">H</button>
-            <button type="button" class="editor-btn" onclick="insertMd('\n---\n','')" title="分隔线">-</button>
+            <button type="button" class="editor-btn" onclick="insertMd('**','**')">B</button>
+            <button type="button" class="editor-btn" onclick="insertMd('*','*')"><em>I</em></button>
+            <button type="button" class="editor-btn" onclick="insertMd('\n> ','')">&gt;</button>
+            <button type="button" class="editor-btn" onclick="insertMd('\n## ','')">H</button>
+            <button type="button" class="editor-btn" onclick="insertMd('\n---\n','')">-</button>
             <span class="editor-hint">已按 Markdown 正式渲染文章结构</span>
           </div>
-          <textarea class="form-textarea" id="content" name="content" required><%= typeof form !== 'undefined' && form && form.content ? form.content : '' %></textarea>
-          <div class="char-counter">
-            <span id="charCount">已输入 0 字</span>
-            <span class="char-range">建议 500-3000 字</span>
-            <span class="autosave-hint" id="autosaveHint"></span>
-          </div>
+          <textarea class="form-textarea" id="content" name="content" required><%= form && form.content ? form.content : '' %></textarea>
+          <div class="char-counter"><span id="charCount">已输入 0 字</span><span class="char-range">建议 500-3000 字</span><span class="autosave-hint" id="autosaveHint"></span></div>
         </div>
-
         <div class="form-group">
           <label class="form-label" for="value_note">一句话说明：这篇内容对别人有什么价值？</label>
-          <input class="form-input" type="text" id="value_note" name="value_note" value="<%= typeof form !== 'undefined' && form && form.value_note ? form.value_note : '' %>">
+          <input class="form-input" type="text" id="value_note" name="value_note" value="<%= form && form.value_note ? form.value_note : '' %>">
         </div>
-
         <div class="form-group">
-          <label class="form-check">
-            <input type="checkbox" name="agree" value="1" <%= form && form.agree ? 'checked' : '' %> required>
-            <span>我确认以上内容为本人真实经历或观点，不涉及捏造、诽谤或侵犯他人知识产权，并理解本平台为非正式学术交流空间。 <span class="required">*</span></span>
-          </label>
+          <label class="form-check"><input type="checkbox" name="agree" value="1" <%= form && form.agree ? 'checked' : '' %> required><span>我确认以上内容为本人真实经历或观点，不涉及捏造、诽谤或侵犯他人知识产权。 <span class="required">*</span></span></label>
         </div>
-
-        <div class="submit-action-bar">
-          <div class="submit-action-bar__meta">
-            <strong>提交前检查</strong>
-            <span>系统会阻止重复提交，并在成功后自动清理本地草稿。</span>
+        <div class="submit-workbench" id="typingWorkbench">
+          <div class="submit-workbench__head">
+            <h3>馆藏排版工作台</h3>
+            <button type="button" class="member-action-btn" id="optimizeDraftBtn">整理为馆藏排版</button>
           </div>
+          <div class="submit-workbench__grid">
+            <div class="submit-workbench__panel">
+              <span class="submit-workbench__label">整理建议</span>
+              <textarea id="optimizedPreview" class="form-textarea form-textarea--compact" placeholder="点击按钮后，系统会在这里生成排版整理稿。" readonly></textarea>
+            </div>
+            <div class="submit-workbench__panel">
+              <span class="submit-workbench__label">馆藏摘要 / 导语</span>
+              <div class="submit-workbench__note" id="optimizeMeta">系统会自动提取摘要、导语和标签建议。</div>
+              <button type="button" class="home-outline-btn" id="applyOptimizeBtn" disabled>应用整理稿到编辑区</button>
+            </div>
+          </div>
+        </div>
+        <div class="submit-action-bar">
+          <div class="submit-action-bar__meta"><strong>提交前检查</strong><span>系统会阻止重复提交，并在成功后自动清理本地草稿。</span></div>
           <button class="btn-submit" type="submit" id="submitBtn">提交投稿</button>
         </div>
       </form>
-
       <aside class="form-sidebar form-sidebar--enhanced">
-        <div class="sidebar-card sidebar-card--highlight">
-          <h3 class="sidebar-card__title">会员加成</h3>
-          <div class="sidebar-card__body">
-            <p>注册会员后，你将获得：</p>
-            <ul>
-              <li>投稿自动归入个人工作台</li>
-              <li>审核状态通知</li>
-              <li>文章收藏清单</li>
-              <li>会员身份徽章展示</li>
-            </ul>
-          </div>
-        </div>
-        <div class="sidebar-card">
-          <h3 class="sidebar-card__title">Markdown 支持</h3>
-          <div class="sidebar-card__body">
-            <ul>
-              <li><code>## 小标题</code> 用于分节</li>
-              <li><code>**加粗**</code> 强调关键句</li>
-              <li><code>&gt; 引用</code> 放置审稿意见或原话</li>
-              <li><code>---</code> 插入文中转折</li>
-            </ul>
-          </div>
-        </div>
-        <div class="sidebar-card">
-          <h3 class="sidebar-card__title">稿件追踪</h3>
-          <div class="sidebar-card__body">
-            <p>投稿成功后将获得唯一编号，可在 <a href="/track">稿件追踪</a> 页面查询进度。</p>
-          </div>
-        </div>
+        <div class="sidebar-card sidebar-card--highlight"><h3 class="sidebar-card__title">馆藏版提醒</h3><div class="sidebar-card__body"><p>前台整理不会覆盖你的原稿，只会生成一个更适合阅读的馆藏版建议。</p></div></div>
+        <div class="sidebar-card"><h3 class="sidebar-card__title">Markdown 支持</h3><div class="sidebar-card__body"><ul><li><code>## 小标题</code> 用于分节</li><li><code>**加粗**</code> 强调关键句</li><li><code>&gt; 引用</code> 放置审稿意见或原话</li><li><code>---</code> 插入文中转折</li></ul></div></div>
       </aside>
     </div>
   </div>
 </main>
-
 <%- include('partials/footer') %>
 <script>
 (function(){
@@ -168,92 +116,47 @@
   var cc = document.getElementById('charCount');
   var key = 'nrr-draft';
   var hint = document.getElementById('autosaveHint');
+  var optimizeBtn = document.getElementById('optimizeDraftBtn');
+  var applyBtn = document.getElementById('applyOptimizeBtn');
+  var optimizedPreview = document.getElementById('optimizedPreview');
+  var optimizeMeta = document.getElementById('optimizeMeta');
   var fields = ['title','discipline','section','content','value_note','pen_name','author_mode'];
   var isSuccess = '<%= typeof success !== "undefined" && success ? "1" : "" %>';
-
-  function syncAuthorMode() {
-    if (!authorMode || !penNameGroup) return;
-    penNameGroup.style.display = authorMode.value !== 'anonymous' ? '' : 'none';
-  }
-
-  function updateCount(){
-    if (!ta || !cc) return;
-    var len = ta.value.length;
-    cc.textContent = '已输入 ' + len + ' 字';
-    cc.style.color = (len >= 500 && len <= 3000) ? '#3A7D44' : (len > 3000 ? '#8B2500' : '');
-  }
-
-  window.insertMd = function(before, after) {
-    if (!ta) return;
-    var start = ta.selectionStart, end = ta.selectionEnd;
-    var sel = ta.value.substring(start, end);
-    ta.value = ta.value.substring(0, start) + before + sel + after + ta.value.substring(end);
-    ta.focus();
-    ta.selectionStart = start + before.length;
-    ta.selectionEnd = start + before.length + sel.length;
-    ta.dispatchEvent(new Event('input'));
-  };
-
-  function saveDraft(){
-    var data = {};
-    fields.forEach(function(f){
-      var el = document.getElementById(f);
-      if(el) data[f] = el.value;
-    });
-    localStorage.setItem(key, JSON.stringify(data));
-    if(hint) {
-      hint.textContent = '草稿已自动保存';
-      setTimeout(function(){ if (hint.textContent === '草稿已自动保存') hint.textContent=''; }, 2000);
-    }
-  }
-
-  function loadDraft(){
-    try {
-      var d = JSON.parse(localStorage.getItem(key));
-      if(!d) return;
-      var hasContent = false;
-      fields.forEach(function(f){
-        var el = document.getElementById(f);
-        if(el && d[f] && !el.value){
-          el.value = d[f];
-          hasContent = true;
-        }
-      });
-      if(hasContent && hint) hint.textContent = '已恢复上次草稿';
-    } catch (e) {}
-  }
-
-  if (authorMode) {
-    authorMode.addEventListener('change', syncAuthorMode);
-    syncAuthorMode();
-  }
-
-  if (ta) {
-    ta.addEventListener('input', updateCount);
-    updateCount();
-  }
-
+  var latestOptimized = '';
+  function syncAuthorMode() { if (authorMode && penNameGroup) penNameGroup.style.display = authorMode.value !== 'anonymous' ? '' : 'none'; }
+  function updateCount(){ if (!ta || !cc) return; var len = ta.value.length; cc.textContent = '已输入 ' + len + ' 字'; cc.style.color = (len >= 500 && len <= 3000) ? '#3A7D44' : (len > 3000 ? '#8B2500' : ''); }
+  window.insertMd = function(before, after) { if (!ta) return; var start = ta.selectionStart, end = ta.selectionEnd; var sel = ta.value.substring(start, end); ta.value = ta.value.substring(0, start) + before + sel + after + ta.value.substring(end); ta.focus(); ta.selectionStart = start + before.length; ta.selectionEnd = start + before.length + sel.length; ta.dispatchEvent(new Event('input')); };
+  function saveDraft(){ var data = {}; fields.forEach(function(f){ var el = document.getElementById(f); if(el) data[f] = el.value; }); localStorage.setItem(key, JSON.stringify(data)); if(hint) { hint.textContent = '草稿已自动保存'; setTimeout(function(){ if (hint.textContent === '草稿已自动保存') hint.textContent=''; }, 2000); } }
+  function loadDraft(){ try { var d = JSON.parse(localStorage.getItem(key)); if(!d) return; var hasContent = false; fields.forEach(function(f){ var el = document.getElementById(f); if(el && d[f] && !el.value){ el.value = d[f]; hasContent = true; } }); if(hasContent && hint) hint.textContent = '已恢复上次草稿'; } catch (e) {} }
+  if (authorMode) { authorMode.addEventListener('change', syncAuthorMode); syncAuthorMode(); }
+  if (ta) { ta.addEventListener('input', updateCount); updateCount(); }
   if(!isSuccess) loadDraft();
-
-  fields.forEach(function(f){
-    var el = document.getElementById(f);
-    if(el) el.addEventListener('input', function(){ clearTimeout(window._saveTimer); window._saveTimer = setTimeout(saveDraft, 1200); });
-  });
-
-  if (form) {
-    form.addEventListener('submit', function(){
-      if (submitBtn && submitBtn.dataset.submitted === '1') {
-        return false;
-      }
-      if (submitBtn) {
-        submitBtn.dataset.submitted = '1';
-        submitBtn.disabled = true;
-        submitBtn.textContent = '正在提交...';
-      }
-      localStorage.removeItem(key);
+  fields.forEach(function(f){ var el = document.getElementById(f); if(el) el.addEventListener('input', function(){ clearTimeout(window._saveTimer); window._saveTimer = setTimeout(saveDraft, 1200); }); });
+  if (optimizeBtn) {
+    optimizeBtn.addEventListener('click', function(){
+      optimizeBtn.disabled = true;
+      optimizeBtn.textContent = '整理中...';
+      fetch('/submit/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': '<%= csrfToken %>' },
+        body: JSON.stringify({ title: document.getElementById('title').value, section: document.getElementById('section').value, value_note: document.getElementById('value_note').value, content: ta.value })
+      }).then(function(res){ return res.json(); }).then(function(data){
+        latestOptimized = data.optimizedContent || '';
+        optimizedPreview.value = latestOptimized;
+        optimizeMeta.innerHTML = '<strong>导语：</strong>' + (data.deck || '无') + '<br><strong>摘要：</strong>' + (data.excerpt || '无') + '<br><strong>建议标签：</strong>' + ((data.suggestedTags || []).join(' / ') || '无');
+        applyBtn.disabled = !latestOptimized;
+      }).catch(function(){ optimizeMeta.textContent = '整理失败，请稍后再试。'; }).finally(function(){ optimizeBtn.disabled = false; optimizeBtn.textContent = '整理为馆藏排版'; });
     });
   }
-
+  if (applyBtn) {
+    applyBtn.addEventListener('click', function(){
+      if (!latestOptimized) return;
+      ta.value = latestOptimized;
+      ta.dispatchEvent(new Event('input'));
+      optimizeMeta.insertAdjacentHTML('beforeend', '<br><em>整理稿已应用到编辑区，你仍可继续修改。</em>');
+    });
+  }
+  if (form) { form.addEventListener('submit', function(){ if (submitBtn && submitBtn.dataset.submitted === '1') return false; if (submitBtn) { submitBtn.dataset.submitted = '1'; submitBtn.disabled = true; submitBtn.textContent = '正在提交...'; } localStorage.removeItem(key); }); }
   if(isSuccess) localStorage.removeItem(key);
 })();
 </script>

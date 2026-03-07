@@ -49,22 +49,20 @@ const submitLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-function escapeHtml(text) {
-  return String(text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+function sanitizeRenderedHtml(html) {
+  return String(html || '')
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/\son\w+=("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript:/gi, '');
 }
 
 function renderMarkdown(text) {
   if (!text) return '';
-  const safeText = escapeHtml(text);
   if (!markedLib) {
-    return safeText.replace(/\n/g, '<br>');
+    return String(text).replace(/\n/g, '<br>');
   }
-  return markedLib.parse(safeText);
+  return sanitizeRenderedHtml(markedLib.parse(String(text)));
 }
 
 function csrfCheck(req, res, next) {

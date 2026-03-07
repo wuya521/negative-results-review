@@ -1,0 +1,34 @@
+﻿<%- include('partials/head', { pageTitle: '广播馆' }) %>
+<%- include('partials/nav') %>
+<header class="page-header page-header--compact">
+  <div class="container">
+    <p class="page-header__label">Broadcast Archive</p>
+    <h1 class="page-header__title">档案馆广播馆</h1>
+    <p class="page-header__sub">所有在首页与会员工作台出现过的广播，会在这里按时间与优先级继续存档。</p>
+  </div>
+</header>
+<main class="section">
+  <div class="container broadcast-archive-list">
+    <% broadcasts.forEach(function(item, index) { %>
+    <article class="broadcast-archive-card fade-in">
+      <div class="broadcast-archive-card__meta">
+        <span><%= item.type %></span>
+        <span><%= String(index + 1).padStart(3, '0') %></span>
+      </div>
+      <h2><%= item.title %></h2>
+      <% if (item.subtitle) { %><p class="broadcast-archive-card__subtitle"><%= item.subtitle %></p><% } %>
+      <p class="broadcast-archive-card__body"><%= item.content %></p>
+      <div class="broadcast-archive-card__footer">
+        <span><%= item.created_at ? String(item.created_at).substring(0, 16).replace('T', ' ') : '' %></span>
+        <a href="/broadcasts/<%= item.id %>">查看详情</a>
+      </div>
+    </article>
+    <% }) %>
+    <div class="pagination">
+      <% if (page > 1) { %><a href="/broadcasts?page=<%= page - 1 %>" class="page-link">← 上一页</a><% } %>
+      <span class="page-info">第 <%= page %> / <%= totalPages %> 页</span>
+      <% if (page < totalPages) { %><a href="/broadcasts?page=<%= page + 1 %>" class="page-link">下一页 →</a><% } %>
+    </div>
+  </div>
+</main>
+<%- include('partials/footer') %>

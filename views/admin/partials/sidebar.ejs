@@ -14,15 +14,19 @@
     <li><a href="/admin/dashboard" class="<%= _active === 'dashboard' ? 'active' : '' %>"><span class="nav-icon">◧</span>仪表盘</a></li>
 
     <li class="sidebar-section">Manuscripts</li>
-    <li><a href="/admin/manuscripts?status=pending" class="<%= _active === 'pending' ? 'active' : '' %>"><span class="nav-icon">◉</span>待审稿件<span class="sidebar-count"><%= _stats.pending || 0 %></span></a></li>
+    <li><a href="/admin/manuscripts?status=pending" class="<%= _active === 'pending' ? 'active' : '' %>"><span class="nav-icon">◎</span>待审稿件<span class="sidebar-count"><%= _stats.pending || 0 %></span></a></li>
     <li><a href="/admin/manuscripts" class="<%= _active === 'all' ? 'active' : '' %>"><span class="nav-icon">▤</span>全部稿件</a></li>
     <li><a href="/admin/manuscripts?status=published" class="<%= _active === 'published' ? 'active' : '' %>"><span class="nav-icon">▣</span>已发布</a></li>
     <li><a href="/admin/manuscripts?status=accepted" class="<%= _active === 'accepted' ? 'active' : '' %>"><span class="nav-icon">◎</span>已录用</a></li>
     <li><a href="/admin/manuscripts?status=revision" class="<%= _active === 'revision' ? 'active' : '' %>"><span class="nav-icon">↺</span>待退修</a></li>
 
+    <li class="sidebar-section">Publication</li>
+    <li><a href="/admin/issues" class="<%= _active === 'issues' ? 'active' : '' %>"><span class="nav-icon">▦</span>期号管理</a></li>
+    <li><a href="/admin/announcements" class="<%= _active === 'announcements' ? 'active' : '' %>"><span class="nav-icon">✦</span>播报机公告</a></li>
+
     <li class="sidebar-section">Members</li>
     <li><a href="/admin/users" class="<%= _active === 'users' ? 'active' : '' %>"><span class="nav-icon">⌘</span>会员管理</a></li>
-    <li><a href="/admin/member-applications?status=pending" class="<%= _active === 'applications' ? 'active' : '' %>"><span class="nav-icon">✦</span>会员申请</a></li>
+    <li><a href="/admin/member-applications?status=pending" class="<%= _active === 'applications' ? 'active' : '' %>"><span class="nav-icon">◇</span>会员申请</a></li>
 
     <li class="sidebar-section">Tools</li>
     <li><a href="/admin/manuscripts/export"><span class="nav-icon">⇩</span>导出 CSV</a></li>
@@ -32,7 +36,7 @@
     <% if (_admin.role === 'admin') { %>
     <li><a href="/admin/admins" class="<%= _active === 'admins' ? 'active' : '' %>"><span class="nav-icon">⚙</span>管理员</a></li>
     <% } %>
-    <li><a href="/admin/password" class="<%= _active === 'password' ? 'active' : '' %>"><span class="nav-icon">🔒</span>修改密码</a></li>
+    <li><a href="/admin/password" class="<%= _active === 'password' ? 'active' : '' %>"><span class="nav-icon">⌘</span>修改密码</a></li>
     <li><a href="/" target="_blank" rel="noreferrer"><span class="nav-icon">↗</span>查看前台</a></li>
     <li><a href="/admin/logout"><span class="nav-icon">⎋</span>退出登录</a></li>
   </ul>

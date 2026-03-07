@@ -1,0 +1,79 @@
+﻿<%- include('partials/head', { pageTitle: '期号管理' }) %>
+<body>
+<div class="layout">
+<%- include('partials/sidebar', { active: 'issues', stats: stats, admin: admin }) %>
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
+      <span class="topbar-issue">ISSUE DESK</span>
+      <span class="topbar-status"><span class="dot"></span>期号与刊标管理</span>
+    </div>
+  </header>
+
+  <div class="content">
+    <div class="sec-header">
+      <h2>期号管理</h2>
+      <span class="tag">Issues</span>
+    </div>
+
+    <% if (typeof msg !== 'undefined' && msg) { %>
+    <div class="detail-card" style="margin-bottom:1rem;font-size:.82rem;color:var(--text-sec)">
+      <%= ({ created: '期号已创建。', current_saved: '当前期号已切换。', invalid: '请完整填写期号信息。' })[msg] || msg %>
+    </div>
+    <% } %>
+
+    <div class="member-admin-actions-grid">
+      <section class="detail-card member-admin-inline-card">
+        <h3 class="member-admin-section-title">创建新期号</h3>
+        <form method="POST" action="/admin/issues" class="member-form-stack">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="member-form-field"><span>期号代码</span><input type="text" name="issue_code" placeholder="ISSUE-002" required></label>
+          <label class="member-form-field"><span>展示名称</span><input type="text" name="issue_label" placeholder="ISSUE 002" required></label>
+          <div class="edit-grid">
+            <label class="member-form-field"><span>季节</span><input type="text" name="season" placeholder="SUMMER"></label>
+            <label class="member-form-field"><span>年份</span><input type="number" name="year" value="2026" min="2020" max="2099"></label>
+          </div>
+          <label class="member-form-field"><span>主题标题</span><input type="text" name="theme_title" placeholder="本期主题"></label>
+          <label class="member-form-field"><span>主题说明</span><textarea name="theme_note" rows="4" placeholder="用于首页、本期刊标与馆藏页说明"></textarea></label>
+          <label class="member-form-field"><span>封面标签</span><input type="text" name="cover_label" placeholder="创刊号 / 特别专题"></label>
+          <label class="edit-check"><input type="checkbox" name="is_current" value="1"> 设为当前期号</label>
+          <button type="submit" class="btn-save">创建期号</button>
+        </form>
+      </section>
+
+      <section class="detail-card member-admin-inline-card">
+        <h3 class="member-admin-section-title">现有期号</h3>
+        <div class="member-admin-stack">
+          <% issues.forEach(function(issue) { %>
+          <article class="member-admin-record">
+            <div>
+              <div class="member-item__eyebrow"><%= issue.issue_code %> · <%= issue.year %> <%= issue.season || '' %></div>
+              <h4><%= issue.issue_label %></h4>
+              <p><%= issue.theme_title || '未填写主题' %></p>
+              <p>稿件数：<%= issue.manuscript_count || 0 %></p>
+            </div>
+            <div class="member-item__meta-block">
+              <span class="member-badge member-badge--<%= issue.is_current ? 'approved' : 'pending' %>"><%= issue.is_current ? '当前期号' : '历史期号' %></span>
+              <% if (!issue.is_current) { %>
+              <form method="POST" action="/admin/issues/<%= issue.id %>/current">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" class="member-mark-read">设为当前期号</button>
+              </form>
+              <% } %>
+            </div>
+          </article>
+          <% }) %>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
+if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}
+if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
+</script>
+</body></html>
+

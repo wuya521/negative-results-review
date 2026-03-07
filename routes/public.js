@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { requireMember } = require('../middleware/auth');
 const { SECTIONS, PER_PAGE_PUBLIC, estimateReadingTime } = require('../config/constants');
+const { buildTypographyPackage } = require('../lib/editorial');
 
 const router = express.Router();
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -52,24 +53,65 @@ function createSubmitToken(req) {
 }
 
 function getSubmissionFingerprint(payload) {
-  const fields = [
-    payload.title,
-    payload.discipline,
-    payload.section,
-    payload.author_mode,
-    payload.pen_name,
-    payload.content,
-    payload.value_note,
-  ];
-
   return crypto
     .createHash('sha256')
-    .update(
-      fields
-        .map(item => String(item || '').trim().replace(/\s+/g, ' '))
-        .join('\n--nrr--\n')
-    )
+    .update([
+      payload.title,
+      payload.discipline,
+      payload.section,
+      payload.author_mode,
+      payload.pen_name,
+      payload.content,
+      payload.value_note,
+    ].map(item => String(item || '').trim().replace(/\s+/g, ' ')).join('\n--nrr--\n'))
     .digest('hex');
+}
+
+async function loadCurrentIssue(db) {
+  const [rows] = await db.execute(
+    'SELECT * FROM issues WHERE is_active = 1 ORDER BY is_current DESC, year DESC, id DESC LIMIT 1'
+  );
+  return rows[0] || null;
+}
+
+function getAudienceList(user) {
+  const audiences = ['all'];
+  if (!user) {
+    audiences.push('guest');
+    return audiences;
+  }
+  audiences.push('member');
+  if (user.member_tier) audiences.push(user.member_tier);
+  return audiences;
+}
+
+async function loadAnnouncements(db, scope, user, limit = 5) {
+  const flagMap = {
+    home: 'show_on_home',
+    dashboard: 'show_on_dashboard',
+    article: 'show_on_article',
+  };
+  const audienceList = getAudienceList(user);
+  const placeholders = audienceList.map(() => '?').join(',');
+  const [rows] = await db.execute(
+    `SELECT * FROM announcements
+     WHERE is_active = 1
+       AND ${flagMap[scope] || 'show_on_home'} = 1
+       AND audience IN (${placeholders})
+       AND (start_at IS NULL OR start_at <= NOW())
+       AND (end_at IS NULL OR end_at >= NOW())
+     ORDER BY is_pinned DESC, priority DESC, created_at DESC
+     LIMIT ?`,
+    [...audienceList, limit]
+  );
+
+  if (rows.length) {
+    await db.execute(
+      `UPDATE announcements SET impression_count = impression_count + 1 WHERE id IN (${rows.map(() => '?').join(',')})`,
+      rows.map(item => item.id)
+    ).catch(() => {});
+  }
+  return rows;
 }
 
 function buildSubmitViewModel(req, overrides = {}) {
@@ -82,6 +124,7 @@ function buildSubmitViewModel(req, overrides = {}) {
     form: overrides.form || {},
     sections: SECTIONS,
     submitToken,
+    currentIssue: overrides.currentIssue || null,
     memberHint: req.session.user
       ? '会员投稿会自动归入你的工作台，并附带身份徽章与站内通知。'
       : '登录后投稿可自动归档到会员工作台，便于后续追踪与收藏。',
@@ -94,12 +137,12 @@ async function loadMemberDashboardData(db, userId) {
     [userId]
   );
   const [submissions] = await db.execute(
-    `SELECT id, submission_no, title, section, status, created_at, updated_at, published_at
+    `SELECT id, submission_no, title, display_title, section, status, issue_id, created_at, updated_at, published_at
      FROM manuscripts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20`,
     [userId]
   );
   const [favorites] = await db.execute(
-    `SELECT m.id, m.title, m.section, m.published_at, f.created_at AS favorited_at
+    `SELECT m.id, m.title, m.display_title, m.section, m.published_at, f.created_at AS favorited_at
      FROM favorites f
      JOIN manuscripts m ON m.id = f.article_id
      WHERE f.user_id = ? AND m.status IN ('published', 'archived')
@@ -130,22 +173,76 @@ async function loadMemberDashboardData(db, userId) {
   };
 }
 
+function prepareArticleRecord(article) {
+  const renderedTitle = article.display_title || article.title;
+  const renderedContent = article.published_content || article.content;
+  const renderedDeck = article.deck || article.value_note || '';
+  const renderedExcerpt = article.excerpt || (renderedContent || '').replace(/[#>*`\-]/g, '').slice(0, 160);
+  return {
+    ...article,
+    renderedTitle,
+    renderedContent,
+    renderedDeck,
+    renderedExcerpt,
+  };
+}
+
 module.exports = function (submitLimiter, csrfCheck) {
   router.get('/', wrap(async (req, res) => {
     const db = res.locals.db;
     const [pinned] = await db.execute(
-      `SELECT id, submission_no, title, section, author_mode, pen_name, is_pinned, is_editor_pick, is_trending, is_featured, tags, published_at
+      `SELECT id, submission_no, title, display_title, section, author_mode, pen_name, is_pinned, is_editor_pick, is_trending, is_featured, tags, published_at
        FROM manuscripts WHERE status = 'published' AND is_pinned = 1 ORDER BY published_at DESC LIMIT 3`
     );
     const [articles] = await db.execute(
-      `SELECT id, submission_no, title, section, author_mode, pen_name, is_pinned, is_editor_pick, is_trending, is_featured, tags, published_at, view_count
+      `SELECT id, submission_no, title, display_title, deck, excerpt, section, author_mode, pen_name, is_pinned, is_editor_pick, is_trending, is_featured, tags, published_at, view_count
        FROM manuscripts WHERE status = 'published' ORDER BY is_pinned DESC, published_at DESC LIMIT 8`
     );
     const [featured] = await db.execute(
-      `SELECT id, submission_no, title, section, published_at
+      `SELECT id, submission_no, title, display_title, section, published_at
        FROM manuscripts WHERE status = 'published' AND is_featured = 1 ORDER BY published_at DESC LIMIT 3`
     );
-    res.render('index', { articles, featured, pinned, sections: SECTIONS });
+    const broadcasts = await loadAnnouncements(db, 'home', req.session.user, 6);
+    const currentIssue = await loadCurrentIssue(db);
+    res.render('index', { articles, featured, pinned, sections: SECTIONS, broadcasts, currentIssue });
+  }));
+
+  router.get('/broadcasts', wrap(async (req, res) => {
+    const db = res.locals.db;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const audienceList = getAudienceList(req.session.user);
+    const placeholders = audienceList.map(() => '?').join(',');
+    const [[{ c: total }]] = await db.execute(
+      `SELECT COUNT(*) AS c FROM announcements
+       WHERE audience IN (${placeholders}) AND is_active = 1`,
+      audienceList
+    );
+    const totalPages = Math.ceil(Number(total) / PER_PAGE_PUBLIC) || 1;
+    const [broadcasts] = await db.execute(
+      `SELECT * FROM announcements
+       WHERE audience IN (${placeholders}) AND is_active = 1
+       ORDER BY is_pinned DESC, priority DESC, created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...audienceList, PER_PAGE_PUBLIC, (page - 1) * PER_PAGE_PUBLIC]
+    );
+    res.render('broadcasts', { broadcasts, page, totalPages });
+  }));
+
+  router.get('/broadcasts/:id', wrap(async (req, res) => {
+    const db = res.locals.db;
+    const [rows] = await db.execute('SELECT * FROM announcements WHERE id = ? AND is_active = 1 LIMIT 1', [req.params.id]);
+    if (!rows.length) {
+      return res.status(404).render('error', { code: 404, title: '广播不存在', message: '你访问的广播不存在或已下线。' });
+    }
+    res.render('broadcast', { broadcast: rows[0] });
+  }));
+
+  router.get('/broadcasts/:id/go', wrap(async (req, res) => {
+    const db = res.locals.db;
+    const [rows] = await db.execute('SELECT id, cta_link FROM announcements WHERE id = ? AND is_active = 1 LIMIT 1', [req.params.id]);
+    if (!rows.length) return res.redirect('/broadcasts');
+    await db.execute('UPDATE announcements SET click_count = click_count + 1 WHERE id = ?', [req.params.id]).catch(() => {});
+    res.redirect(rows[0].cta_link || '/broadcasts');
   }));
 
   router.get('/register', (req, res) => {
@@ -211,7 +308,6 @@ module.exports = function (submitLimiter, csrfCheck) {
 
     const normalizedEmail = email.trim().toLowerCase();
     const [rows] = await db.execute('SELECT * FROM users WHERE email = ? LIMIT 1', [normalizedEmail]);
-
     if (rows.length === 0) {
       return res.render('login', { error: '邮箱或密码错误。', form, nextUrl: next || '/me' });
     }
@@ -221,7 +317,6 @@ module.exports = function (submitLimiter, csrfCheck) {
       delete req.session.user;
       return res.render('login', { error: '账号已被封禁，请联系管理员。', form, nextUrl: next || '/me' });
     }
-
     if (!bcrypt.compareSync(password, user.password_hash)) {
       return res.render('login', { error: '邮箱或密码错误。', form, nextUrl: next || '/me' });
     }
@@ -246,20 +341,24 @@ module.exports = function (submitLimiter, csrfCheck) {
     const db = res.locals.db;
     const feedback = getDashboardFeedback(req.query);
     const data = await loadMemberDashboardData(db, req.session.user.id);
+    const dashboardAnnouncements = await loadAnnouncements(db, 'dashboard', req.session.user, 4);
     if (data.profile) {
       req.session.user.display_name = data.profile.display_name;
       req.session.user.member_tier = data.profile.member_tier;
     }
-    res.render('member-dashboard', { ...data, feedback, memberTierLabels: MEMBER_TIER_LABELS });
+    res.render('member-dashboard', {
+      ...data,
+      feedback,
+      memberTierLabels: MEMBER_TIER_LABELS,
+      dashboardAnnouncements,
+    });
   }));
 
   router.post('/me/profile', requireMember, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
     const displayName = (req.body.display_name || '').trim();
     const bio = (req.body.bio || '').trim().substring(0, 500);
-    if (!displayName || displayName.length > 80) {
-      return res.redirect('/me?error=profile_invalid');
-    }
+    if (!displayName || displayName.length > 80) return res.redirect('/me?error=profile_invalid');
     await db.execute('UPDATE users SET display_name = ?, bio = ? WHERE id = ?', [displayName, bio, req.session.user.id]);
     req.session.user.display_name = displayName;
     res.redirect('/me?msg=profile_saved');
@@ -268,19 +367,11 @@ module.exports = function (submitLimiter, csrfCheck) {
   router.post('/me/password', requireMember, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
     const { old_password, new_password, confirm_password } = req.body;
-    if (!old_password || !new_password || !confirm_password) {
-      return res.redirect('/me?error=password_invalid');
-    }
-    if (new_password.length < 6) {
-      return res.redirect('/me?error=password_short');
-    }
-    if (new_password !== confirm_password) {
-      return res.redirect('/me?error=password_mismatch');
-    }
+    if (!old_password || !new_password || !confirm_password) return res.redirect('/me?error=password_invalid');
+    if (new_password.length < 6) return res.redirect('/me?error=password_short');
+    if (new_password !== confirm_password) return res.redirect('/me?error=password_mismatch');
     const [rows] = await db.execute('SELECT password_hash FROM users WHERE id = ?', [req.session.user.id]);
-    if (rows.length === 0 || !bcrypt.compareSync(old_password, rows[0].password_hash)) {
-      return res.redirect('/me?error=password_wrong');
-    }
+    if (rows.length === 0 || !bcrypt.compareSync(old_password, rows[0].password_hash)) return res.redirect('/me?error=password_wrong');
     const hash = bcrypt.hashSync(new_password, 10);
     await db.execute('UPDATE users SET password_hash = ? WHERE id = ?', [hash, req.session.user.id]);
     await createNotification(db, req.session.user.id, '账户密码已更新', '你的会员账户密码刚刚被修改。若这不是你本人操作，请立即联系站点管理员。', '/me');
@@ -291,27 +382,15 @@ module.exports = function (submitLimiter, csrfCheck) {
     const db = res.locals.db;
     const requestedTier = ['supporter', 'contributor'].includes(req.body.requested_tier) ? req.body.requested_tier : 'supporter';
     const reason = (req.body.reason || '').trim();
-    if (reason.length < 12) {
-      return res.redirect('/me?error=application_invalid');
-    }
+    if (reason.length < 12) return res.redirect('/me?error=application_invalid');
 
     const [[profile]] = await db.execute('SELECT member_tier FROM users WHERE id = ?', [req.session.user.id]);
-    if (profile && profile.member_tier === requestedTier) {
-      return res.redirect('/me?error=application_same_tier');
-    }
+    if (profile && profile.member_tier === requestedTier) return res.redirect('/me?error=application_same_tier');
 
-    const [[pending]] = await db.execute(
-      'SELECT COUNT(*) AS c FROM member_applications WHERE user_id = ? AND status = ?',
-      [req.session.user.id, 'pending']
-    );
-    if (Number(pending.c || 0) > 0) {
-      return res.redirect('/me?error=application_pending');
-    }
+    const [[pending]] = await db.execute('SELECT COUNT(*) AS c FROM member_applications WHERE user_id = ? AND status = ?', [req.session.user.id, 'pending']);
+    if (Number(pending.c || 0) > 0) return res.redirect('/me?error=application_pending');
 
-    await db.execute(
-      'INSERT INTO member_applications (user_id, requested_tier, reason) VALUES (?, ?, ?)',
-      [req.session.user.id, requestedTier, reason.substring(0, 4000)]
-    );
+    await db.execute('INSERT INTO member_applications (user_id, requested_tier, reason) VALUES (?, ?, ?)', [req.session.user.id, requestedTier, reason.substring(0, 4000)]);
     await createNotification(db, req.session.user.id, '会员申请已提交', '你的会员申请已进入后台审核队列，审核结果会通过站内通知告知。', '/me');
     res.redirect('/me?msg=application_sent');
   }));
@@ -328,22 +407,30 @@ module.exports = function (submitLimiter, csrfCheck) {
     res.redirect('/me?msg=notifications_cleared');
   }));
 
-  router.get('/submit', (req, res) => {
+  router.get('/submit', wrap(async (req, res) => {
+    const db = res.locals.db;
     const submitToken = createSubmitToken(req);
-    res.render('submit', buildSubmitViewModel(req, { submitToken }));
-  });
+    const currentIssue = await loadCurrentIssue(db);
+    res.render('submit', buildSubmitViewModel(req, { submitToken, currentIssue }));
+  }));
+
+  router.post('/submit/optimize', csrfCheck, wrap(async (req, res) => {
+    const payload = buildTypographyPackage(req.body || {});
+    res.json({ ok: true, ...payload });
+  }));
 
   router.post('/submit', submitLimiter, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
     const { title, discipline, section, author_mode, pen_name, content, value_note, agree, submit_token } = req.body;
     const form = { title, discipline, section, author_mode, pen_name, content, value_note, agree };
+    const currentIssue = await loadCurrentIssue(db);
 
     if (!submit_token || submit_token !== req.session.submitToken) {
-      const nextToken = createSubmitToken(req);
       return res.status(409).render('submit', buildSubmitViewModel(req, {
         error: '这份投稿表单已经失效。请刷新页面后重新提交，系统已阻止重复投稿。',
         form,
-        submitToken: nextToken,
+        submitToken: createSubmitToken(req),
+        currentIssue,
       }));
     }
 
@@ -353,6 +440,7 @@ module.exports = function (submitLimiter, csrfCheck) {
       return res.render('submit', buildSubmitViewModel(req, {
         error: '请完整填写必填项后再提交。',
         form,
+        currentIssue,
       }));
     }
 
@@ -375,42 +463,27 @@ module.exports = function (submitLimiter, csrfCheck) {
       }
     }
 
-    const fingerprint = getSubmissionFingerprint({
-      title: cleanedTitle,
-      discipline: cleanedDiscipline,
-      section,
-      author_mode,
-      pen_name,
-      content: cleanedContent,
-      value_note: cleanedValueNote,
-    });
+    const fingerprint = getSubmissionFingerprint({ title: cleanedTitle, discipline: cleanedDiscipline, section, author_mode, pen_name, content: cleanedContent, value_note: cleanedValueNote });
     const lastSubmission = req.session.lastSubmission || null;
     const submissionActor = userId || `guest:${req.ip}`;
-
-    if (
-      lastSubmission &&
-      lastSubmission.fingerprint === fingerprint &&
-      lastSubmission.actor === submissionActor &&
-      Date.now() - Number(lastSubmission.createdAt || 0) < 15 * 60 * 1000
-    ) {
+    if (lastSubmission && lastSubmission.fingerprint === fingerprint && lastSubmission.actor === submissionActor && Date.now() - Number(lastSubmission.createdAt || 0) < 15 * 60 * 1000) {
       return res.redirect(`/submit?success=1&duplicate=1&no=${encodeURIComponent(lastSubmission.submissionNo)}`);
     }
 
     const year = new Date().getFullYear();
-    const [rows] = await db.execute(
-      'SELECT submission_no FROM manuscripts WHERE submission_no LIKE ? ORDER BY submission_no DESC LIMIT 1',
-      [`NRR-${year}-%`]
-    );
+    const [rows] = await db.execute('SELECT submission_no FROM manuscripts WHERE submission_no LIKE ? ORDER BY submission_no DESC LIMIT 1', [`NRR-${year}-%`]);
     let seq = 1;
     if (rows.length > 0) {
       const last = parseInt(rows[0].submission_no.split('-').pop(), 10);
       if (!isNaN(last)) seq = last + 1;
     }
     const submissionNo = `NRR-${year}-${String(seq).padStart(3, '0')}`;
+    const optimized = buildTypographyPackage({ title: cleanedTitle, section, content: cleanedContent, value_note: cleanedValueNote });
 
     await db.execute(
-      `INSERT INTO manuscripts (submission_no, title, discipline, section, author_mode, pen_name, user_id, content, value_note)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO manuscripts
+       (submission_no, title, discipline, section, author_mode, pen_name, user_id, content, value_note, issue_id, deck, excerpt, optimized_content, layout_style, publication_label)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         submissionNo,
         cleanedTitle,
@@ -420,16 +493,17 @@ module.exports = function (submitLimiter, csrfCheck) {
         pen_name || null,
         userId,
         cleanedContent,
-        cleanedValueNote || null
+        cleanedValueNote || null,
+        currentIssue ? currentIssue.id : null,
+        optimized.deck,
+        optimized.excerpt,
+        optimized.optimizedContent,
+        'journal',
+        currentIssue ? `${currentIssue.issue_label} / ${currentIssue.season || ''} ${currentIssue.year}`.trim() : ''
       ]
     );
 
-    req.session.lastSubmission = {
-      fingerprint,
-      actor: submissionActor,
-      submissionNo,
-      createdAt: Date.now(),
-    };
+    req.session.lastSubmission = { fingerprint, actor: submissionActor, submissionNo, createdAt: Date.now() };
 
     if (userId) {
       await createNotification(db, userId, '投稿已提交', `稿件 ${submissionNo} 已进入编辑队列。你可以在会员工作台持续跟踪状态。`, '/me');
@@ -446,15 +520,13 @@ module.exports = function (submitLimiter, csrfCheck) {
     const db = res.locals.db;
     let no = (req.body.submission_no || '').trim();
     if (!no) return res.render('track', { result: null, query: '', error: '请输入稿件编号。' });
-
     if (/^\d{1,4}$/.test(no)) {
       const year = new Date().getFullYear();
       no = `NRR-${year}-${no.padStart(3, '0')}`;
     }
 
     const [rows] = await db.execute(
-      `SELECT submission_no, title, section, status, risk_level, desensitized_status,
-              editor_note, created_at, updated_at, published_at
+      `SELECT submission_no, title, section, status, risk_level, desensitized_status, editor_note, created_at, updated_at, published_at
        FROM manuscripts WHERE submission_no = ?`,
       [no]
     );
@@ -464,16 +536,7 @@ module.exports = function (submitLimiter, csrfCheck) {
     }
 
     const ms = rows[0];
-    const statusMap = {
-      pending: '待审',
-      under_review: '审核中',
-      revision: '退修',
-      accepted: '已录用',
-      rejected: '已拒稿',
-      published: '已发布',
-      archived: '已归档'
-    };
-
+    const statusMap = { pending: '待审', under_review: '审核中', revision: '退修', accepted: '已录用', rejected: '已拒稿', published: '已发布', archived: '已归档' };
     res.render('track', {
       result: {
         no: ms.submission_no,
@@ -495,28 +558,26 @@ module.exports = function (submitLimiter, csrfCheck) {
   router.get('/article/:id', wrap(async (req, res) => {
     const db = res.locals.db;
     const [rows] = await db.execute(
-      `SELECT * FROM manuscripts WHERE id = ? AND status IN ('published','archived')`,
+      `SELECT m.*, i.issue_code, i.issue_label, i.season, i.year, i.theme_title
+       FROM manuscripts m
+       LEFT JOIN issues i ON i.id = m.issue_id
+       WHERE m.id = ? AND m.status IN ('published','archived')`,
       [req.params.id]
     );
-    if (rows.length === 0) {
+    if (!rows.length) {
       return res.status(404).render('error', { code: 404, title: '文章不存在', message: '你访问的文章不存在或尚未公开。' });
     }
 
-    const article = rows[0];
+    const article = prepareArticleRecord(rows[0]);
     db.execute('UPDATE manuscripts SET view_count = view_count + 1 WHERE id = ?', [req.params.id]).catch(() => {});
-
-    const [comments] = await db.execute(
-      'SELECT id, nickname, content, created_at FROM comments WHERE article_id = ? ORDER BY created_at ASC',
-      [req.params.id]
-    );
-
+    const [comments] = await db.execute('SELECT id, nickname, content, created_at FROM comments WHERE article_id = ? ORDER BY created_at ASC', [req.params.id]);
     const tags = (article.tags || '').split(',').map(t => t.trim()).filter(Boolean);
     let related = [];
     if (tags.length > 0) {
       const tagConditions = tags.map(() => 'tags LIKE ?').join(' OR ');
       const tagParams = tags.map(t => `%${t}%`);
       const [relRows] = await db.execute(
-        `SELECT id, title, section, published_at, view_count FROM manuscripts
+        `SELECT id, title, display_title, section, published_at, view_count FROM manuscripts
          WHERE status IN ('published','archived') AND id != ? AND (section = ? OR ${tagConditions})
          ORDER BY published_at DESC LIMIT 4`,
         [article.id, article.section, ...tagParams]
@@ -527,7 +588,7 @@ module.exports = function (submitLimiter, csrfCheck) {
       const excludeIds = [article.id, ...related.map(r => r.id)];
       const placeholders = excludeIds.map(() => '?').join(',');
       const [moreRows] = await db.execute(
-        `SELECT id, title, section, published_at, view_count FROM manuscripts
+        `SELECT id, title, display_title, section, published_at, view_count FROM manuscripts
          WHERE status IN ('published','archived') AND id NOT IN (${placeholders})
          ORDER BY published_at DESC LIMIT ?`,
         [...excludeIds, 4 - related.length]
@@ -537,28 +598,39 @@ module.exports = function (submitLimiter, csrfCheck) {
 
     let isFavorited = false;
     if (req.session.user) {
-      const [[fav]] = await db.execute(
-        'SELECT COUNT(*) AS c FROM favorites WHERE user_id = ? AND article_id = ?',
-        [req.session.user.id, article.id]
-      );
+      const [[fav]] = await db.execute('SELECT COUNT(*) AS c FROM favorites WHERE user_id = ? AND article_id = ?', [req.session.user.id, article.id]);
       isFavorited = Number(fav.c || 0) > 0;
     }
-
-    const readingTime = estimateReadingTime(article.content);
-    res.render('article', { article, comments, related, readingTime, isFavorited });
+    const articleAnnouncements = await loadAnnouncements(db, 'article', req.session.user, 2);
+    res.render('article', { article, comments, related, readingTime: estimateReadingTime(article.renderedContent), isFavorited, articleAnnouncements });
   }));
+
+  router.get('/article/:id/print', wrap(async (req, res) => {
+    const db = res.locals.db;
+    const [rows] = await db.execute(
+      `SELECT m.*, i.issue_code, i.issue_label, i.season, i.year, i.theme_title, i.cover_label
+       FROM manuscripts m
+       LEFT JOIN issues i ON i.id = m.issue_id
+       WHERE m.id = ? AND m.status IN ('published','archived')`,
+      [req.params.id]
+    );
+    if (!rows.length) {
+      return res.status(404).render('error', { code: 404, title: '馆藏版不存在', message: '该馆藏版尚未开放。' });
+    }
+    const article = prepareArticleRecord(rows[0]);
+    res.render('article-print', { article, readingTime: estimateReadingTime(article.renderedContent) });
+  }));
+
+  router.get('/article/:id/pdf', (req, res) => {
+    res.redirect(`/article/${req.params.id}/print?mode=pdf`);
+  });
 
   router.post('/article/:id/comment', csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
     const { nickname, content } = req.body;
-    if (!content || content.trim().length < 2) {
-      return res.redirect(`/article/${req.params.id}#comments`);
-    }
+    if (!content || content.trim().length < 2) return res.redirect(`/article/${req.params.id}#comments`);
     const safeName = (nickname || '').trim() || (req.session.user ? req.session.user.display_name : '匿名读者');
-    await db.execute(
-      'INSERT INTO comments (article_id, nickname, content) VALUES (?, ?, ?)',
-      [req.params.id, safeName.substring(0, 100), content.trim().substring(0, 2000)]
-    );
+    await db.execute('INSERT INTO comments (article_id, nickname, content) VALUES (?, ?, ?)', [req.params.id, safeName.substring(0, 100), content.trim().substring(0, 2000)]);
     res.redirect(`/article/${req.params.id}#comments`);
   }));
 
@@ -566,10 +638,7 @@ module.exports = function (submitLimiter, csrfCheck) {
     const db = res.locals.db;
     const userId = req.session.user.id;
     const articleId = Number(req.params.id);
-    const [[exists]] = await db.execute(
-      'SELECT id FROM favorites WHERE user_id = ? AND article_id = ?',
-      [userId, articleId]
-    );
+    const [[exists]] = await db.execute('SELECT id FROM favorites WHERE user_id = ? AND article_id = ?', [userId, articleId]);
     if (exists && exists.id) {
       await db.execute('DELETE FROM favorites WHERE id = ?', [exists.id]);
     } else {
@@ -582,33 +651,25 @@ module.exports = function (submitLimiter, csrfCheck) {
     const db = res.locals.db;
     const { section, year, featured, q } = req.query;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-
     let countSql = `SELECT COUNT(*) as c FROM manuscripts WHERE status IN ('published','archived')`;
-    let sql = `SELECT id, submission_no, title, section, author_mode, pen_name,
+    let sql = `SELECT id, submission_no, title, display_title, deck, excerpt, section, author_mode, pen_name,
                       is_featured, is_pinned, is_editor_pick, is_trending, tags, published_at, view_count
                FROM manuscripts WHERE status IN ('published','archived')`;
     const params = [];
-
-    if (section) { const f = ' AND section = ?'; sql += f; countSql += f; params.push(section); }
-    if (year) { const f = ' AND YEAR(published_at) = ?'; sql += f; countSql += f; params.push(year); }
-    if (featured === '1') { const f = ' AND is_featured = 1'; sql += f; countSql += f; }
+    if (section) { const filter = ' AND section = ?'; sql += filter; countSql += filter; params.push(section); }
+    if (year) { const filter = ' AND YEAR(published_at) = ?'; sql += filter; countSql += filter; params.push(year); }
+    if (featured === '1') { const filter = ' AND is_featured = 1'; sql += filter; countSql += filter; }
     if (q) {
-      const f = ' AND (title LIKE ? OR discipline LIKE ? OR content LIKE ? OR tags LIKE ?)';
-      sql += f; countSql += f;
-      params.push('%' + q + '%', '%' + q + '%', '%' + q + '%', '%' + q + '%');
+      const filter = ' AND (title LIKE ? OR discipline LIKE ? OR content LIKE ? OR tags LIKE ? OR excerpt LIKE ?)';
+      sql += filter;
+      countSql += filter;
+      params.push('%' + q + '%', '%' + q + '%', '%' + q + '%', '%' + q + '%', '%' + q + '%');
     }
-
     const [[{ c: total }]] = await db.execute(countSql, params);
     const totalPages = Math.ceil(Number(total) / PER_PAGE_PUBLIC) || 1;
-
     sql += ' ORDER BY is_pinned DESC, published_at DESC LIMIT ? OFFSET ?';
     const [articles] = await db.execute(sql, [...params, PER_PAGE_PUBLIC, (page - 1) * PER_PAGE_PUBLIC]);
-
-    const [yearRows] = await db.execute(
-      `SELECT DISTINCT YEAR(published_at) as y FROM manuscripts
-       WHERE status IN ('published','archived') AND published_at IS NOT NULL ORDER BY y DESC`
-    );
-
+    const [yearRows] = await db.execute(`SELECT DISTINCT YEAR(published_at) as y FROM manuscripts WHERE status IN ('published','archived') AND published_at IS NOT NULL ORDER BY y DESC`);
     res.render('archive', {
       articles,
       sections: SECTIONS,
@@ -622,34 +683,30 @@ module.exports = function (submitLimiter, csrfCheck) {
   router.get('/rss', wrap(async (req, res) => {
     const db = res.locals.db;
     const [articles] = await db.execute(
-      `SELECT id, submission_no, title, section, content, published_at
+      `SELECT id, submission_no, title, display_title, section, published_content, content, published_at
        FROM manuscripts WHERE status = 'published' ORDER BY published_at DESC LIMIT 20`
     );
-
     const host = req.protocol + '://' + req.get('host');
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n<channel>\n';
     xml += '  <title>负结果通讯 Negative Results Review</title>\n';
-    xml += '  <link>' + host + '</link>\n';
+    xml += `  <link>${host}</link>\n`;
     xml += '  <description>记录科研中不被看见的那部分</description>\n';
     xml += '  <language>zh-CN</language>\n';
-    xml += '  <atom:link href="' + host + '/rss" rel="self" type="application/rss+xml"/>\n';
-
-    for (const a of articles) {
-      const excerpt = (a.content || '').substring(0, 300).replace(/[<>&"]/g, c =>
-        ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])
-      );
+    xml += `  <atom:link href="${host}/rss" rel="self" type="application/rss+xml"/>\n`;
+    for (const item of articles) {
+      const source = item.published_content || item.content || '';
+      const excerpt = source.substring(0, 300).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
       xml += '  <item>\n';
-      xml += '    <title>' + a.title.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) + '</title>\n';
-      xml += '    <link>' + host + '/article/' + a.id + '</link>\n';
-      xml += '    <guid>' + host + '/article/' + a.id + '</guid>\n';
-      xml += '    <description>' + excerpt + '...</description>\n';
-      xml += '    <category>' + a.section + '</category>\n';
-      if (a.published_at) xml += '    <pubDate>' + new Date(a.published_at).toUTCString() + '</pubDate>\n';
+      xml += `    <title>${(item.display_title || item.title).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))}</title>\n`;
+      xml += `    <link>${host}/article/${item.id}</link>\n`;
+      xml += `    <guid>${host}/article/${item.id}</guid>\n`;
+      xml += `    <description>${excerpt}...</description>\n`;
+      xml += `    <category>${item.section}</category>\n`;
+      if (item.published_at) xml += `    <pubDate>${new Date(item.published_at).toUTCString()}</pubDate>\n`;
       xml += '  </item>\n';
     }
     xml += '</channel>\n</rss>';
-
     res.set('Content-Type', 'application/rss+xml; charset=utf-8');
     res.send(xml);
   }));

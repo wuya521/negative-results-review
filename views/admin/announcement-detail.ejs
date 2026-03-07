@@ -1,0 +1,91 @@
+﻿<%- include('partials/head', { pageTitle: announcement ? '编辑播报公告' : '新建播报公告' }) %>
+<body>
+<div class="layout">
+<%- include('partials/sidebar', { active: 'announcements', stats: stats, admin: admin }) %>
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
+      <span class="topbar-issue">BROADCAST EDITOR</span>
+      <span class="topbar-status"><span class="dot"></span><%= announcement ? '编辑现有公告' : '创建新公告' %></span>
+    </div>
+  </header>
+
+  <div class="content">
+    <a href="/admin/announcements" class="detail-back">← 返回公告列表</a>
+    <% if (typeof msg !== 'undefined' && msg) { %>
+    <div class="detail-card" style="margin-bottom:1rem;font-size:.82rem;color:var(--text-sec)">
+      <%= ({ created: '公告已创建。', saved: '公告已保存。' })[msg] || msg %>
+    </div>
+    <% } %>
+
+    <div class="member-admin-actions-grid">
+      <section class="edit-card member-admin-inline-card">
+        <h3>公告编辑器</h3>
+        <form method="POST" action="/admin/announcements/save" class="member-form-stack">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <input type="hidden" name="id" value="<%= announcement ? announcement.id : '' %>">
+          <label class="member-form-field"><span>标题</span><input type="text" name="title" value="<%= announcement ? announcement.title : '' %>" required></label>
+          <label class="member-form-field"><span>副标题</span><input type="text" name="subtitle" value="<%= announcement ? announcement.subtitle : '' %>"></label>
+          <label class="member-form-field"><span>正文</span><textarea name="content" rows="8" required><%= announcement ? announcement.content : '' %></textarea></label>
+          <div class="edit-grid">
+            <label class="member-form-field"><span>类型</span><select name="type"><% ['notice','editorial','event','honor','warning'].forEach(function(type){ %><option value="<%= type %>" <%= announcement && announcement.type === type ? 'selected' : '' %>><%= type %></option><% }) %></select></label>
+            <label class="member-form-field"><span>受众</span><select name="audience"><% ['all','guest','member','supporter','contributor','editorial'].forEach(function(aud){ %><option value="<%= aud %>" <%= announcement && announcement.audience === aud ? 'selected' : '' %>><%= aud %></option><% }) %></select></label>
+          </div>
+          <div class="edit-grid">
+            <label class="member-form-field"><span>主题皮肤</span><select name="theme"><% ['archive','editorial','night','signal'].forEach(function(theme){ %><option value="<%= theme %>" <%= announcement && announcement.theme === theme ? 'selected' : '' %>><%= theme %></option><% }) %></select></label>
+            <label class="member-form-field"><span>优先级</span><input type="number" name="priority" value="<%= announcement ? announcement.priority : 0 %>"></label>
+          </div>
+          <div class="edit-grid">
+            <label class="member-form-field"><span>CTA 文案</span><input type="text" name="cta_text" value="<%= announcement ? announcement.cta_text : '' %>"></label>
+            <label class="member-form-field"><span>CTA 链接</span><input type="text" name="cta_link" value="<%= announcement ? announcement.cta_link : '' %>" placeholder="/submit"></label>
+          </div>
+          <div class="edit-grid">
+            <label class="member-form-field"><span>开始时间</span><input type="datetime-local" name="start_at" value="<%= announcement && announcement.start_at ? String(announcement.start_at).replace(' ','T').slice(0,16) : '' %>"></label>
+            <label class="member-form-field"><span>结束时间</span><input type="datetime-local" name="end_at" value="<%= announcement && announcement.end_at ? String(announcement.end_at).replace(' ','T').slice(0,16) : '' %>"></label>
+          </div>
+          <div style="display:flex;gap:1.25rem;flex-wrap:wrap">
+            <label class="edit-check"><input type="checkbox" name="is_active" value="1" <%= !announcement || announcement.is_active ? 'checked' : '' %>> 在线</label>
+            <label class="edit-check"><input type="checkbox" name="is_pinned" value="1" <%= announcement && announcement.is_pinned ? 'checked' : '' %>> 置顶</label>
+            <label class="edit-check"><input type="checkbox" name="is_rotating" value="1" <%= !announcement || announcement.is_rotating ? 'checked' : '' %>> 轮播</label>
+            <label class="edit-check"><input type="checkbox" name="show_on_home" value="1" <%= !announcement || announcement.show_on_home ? 'checked' : '' %>> 首页</label>
+            <label class="edit-check"><input type="checkbox" name="show_on_dashboard" value="1" <%= announcement && announcement.show_on_dashboard ? 'checked' : '' %>> 工作台</label>
+            <label class="edit-check"><input type="checkbox" name="show_on_article" value="1" <%= announcement && announcement.show_on_article ? 'checked' : '' %>> 文章页</label>
+          </div>
+          <button type="submit" class="btn-save">保存公告</button>
+        </form>
+        <% if (announcement) { %>
+        <form method="POST" action="/admin/announcements/<%= announcement.id %>/delete" style="margin-top:1rem" onsubmit="return confirm('确认停用这条公告？')">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="act-btn danger">停用公告</button>
+        </form>
+        <% } %>
+      </section>
+
+      <section class="detail-card member-admin-inline-card">
+        <h3 class="member-admin-section-title">实时预览</h3>
+        <article class="announcement-preview-card <%= announcement && announcement.theme ? 'announcement-preview-card--' + announcement.theme : 'announcement-preview-card--archive' %>">
+          <div class="announcement-preview-card__eyebrow">
+            <span><%= announcement ? announcement.type : 'editorial' %></span>
+            <span><%= announcement ? ('BROADCAST ' + String(announcement.id).padStart(3, '0')) : 'BROADCAST 000' %></span>
+          </div>
+          <h3><%= announcement ? announcement.title : '这里会显示公告标题' %></h3>
+          <p class="announcement-preview-card__subtitle"><%= announcement && announcement.subtitle ? announcement.subtitle : '副标题会显示在这里，用于播报机首屏的第二层信息。' %></p>
+          <div class="announcement-preview-card__body"><%= announcement ? announcement.content : '正文建议控制在两到四句内，保持首屏阅读节奏。' %></div>
+          <div class="announcement-preview-card__meta">
+            <span>audience/<%= announcement ? announcement.audience : 'all' %></span>
+            <span>priority/<%= announcement ? announcement.priority : 0 %></span>
+          </div>
+        </article>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
+if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}
+if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
+</script>
+</body></html>
+
