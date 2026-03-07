@@ -5,7 +5,7 @@
   <div class="container">
     <p class="page-header__label">Submit / 投稿</p>
     <h1 class="page-header__title">向编辑部投稿</h1>
-    <p class="page-header__sub">无论是失败的实验、被拒的论文，还是一段真实的科研情绪，如果你觉得它值得被记录，请在此提交。所有投稿均可匿名。</p>
+    <p class="page-header__sub">无论是失败的实验、被拒的论文，还是一段真实的科研情绪，只要你觉得它值得被记录，就可以在这里提交。会员投稿会自动归入工作台，便于后续追踪。</p>
   </div>
 </header>
 
@@ -15,13 +15,18 @@
     <% if (typeof success !== 'undefined' && success) { %>
     <div class="form-alert form-alert--success">
       <h3>投稿已成功提交</h3>
-      <p>编辑部将在 7 个工作日内审阅。</p>
+      <p>编辑部将在 7 个工作日内审阅。请勿重复提交同一份内容，系统会优先保留第一次有效提交。</p>
       <% if (typeof submissionNo !== 'undefined' && submissionNo) { %>
       <div class="submission-ticket">
         <span>你的稿件编号</span>
         <strong><%= submissionNo %></strong>
       </div>
-      <p>你可以在 <a href="/track?no=<%= submissionNo %>">稿件追踪</a> 页面查询进度。</p>
+      <p>
+        你可以在 <a href="/track?no=<%= submissionNo %>">稿件追踪</a> 页面查询进度。
+        <% if (typeof duplicateDetected !== 'undefined' && duplicateDetected) { %>
+        <span class="submit-success-note">系统已拦截一次重复提交，请直接使用原编号继续追踪。</span>
+        <% } %>
+      </p>
       <% } %>
     </div>
     <% } %>
@@ -31,12 +36,16 @@
     <% } %>
 
     <% if (memberHint) { %>
-    <div class="member-banner"><%= memberHint %></div>
+    <div class="member-banner">
+      <strong>会员投稿提示</strong>
+      <span><%= memberHint %></span>
+    </div>
     <% } %>
 
-    <div class="form-wrapper">
-      <form class="form-main" method="POST" action="/submit" id="submitForm">
+    <div class="form-wrapper form-wrapper--enhanced">
+      <form class="form-main" method="POST" action="/submit" id="submitForm" novalidate>
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="submit_token" value="<%= submitToken %>">
 
         <div class="form-group">
           <label class="form-label" for="title">稿件标题 <span class="required">*</span></label>
@@ -51,7 +60,7 @@
           <div>
             <label class="form-label" for="section">投稿栏目 <span class="required">*</span></label>
             <select class="form-select" id="section" name="section" required>
-              <option value="" disabled selected>请选择栏目</option>
+              <option value="" disabled <%= !(typeof form !== 'undefined' && form && form.section) ? 'selected' : '' %>>请选择栏目</option>
               <% sections.forEach(function(s) { %>
               <option value="<%= s %>" <%= (typeof form !== 'undefined' && form && form.section === s) ? 'selected' : '' %>><%= s %></option>
               <% }) %>
@@ -62,9 +71,9 @@
         <div class="form-group">
           <label class="form-label" for="author_mode">署名方式</label>
           <select class="form-select" id="author_mode" name="author_mode">
-            <option value="anonymous" selected>匿名发表</option>
-            <option value="pen_name">使用笔名</option>
-            <option value="real_name">使用真实姓名</option>
+            <option value="anonymous" <%= !form || !form.author_mode || form.author_mode === 'anonymous' ? 'selected' : '' %>>匿名发表</option>
+            <option value="pen_name" <%= form && form.author_mode === 'pen_name' ? 'selected' : '' %>>使用笔名</option>
+            <option value="real_name" <%= form && form.author_mode === 'real_name' ? 'selected' : '' %>>使用真实姓名</option>
           </select>
           <span class="form-hint">会员身份仅用于站内归属，不会覆盖你选择的公开署名方式。</span>
         </div>
@@ -79,10 +88,10 @@
           <div class="editor-toolbar">
             <button type="button" class="editor-btn" onclick="insertMd('**','**')" title="加粗">B</button>
             <button type="button" class="editor-btn" onclick="insertMd('*','*')" title="斜体"><em>I</em></button>
-            <button type="button" class="editor-btn" onclick="insertMd('\n> ','')" title="引用">❝</button>
+            <button type="button" class="editor-btn" onclick="insertMd('\n> ','')" title="引用">&gt;</button>
             <button type="button" class="editor-btn" onclick="insertMd('\n## ','')" title="小标题">H</button>
-            <button type="button" class="editor-btn" onclick="insertMd('\n---\n','')" title="分隔线">─</button>
-            <span class="editor-hint">现在会按 Markdown 正式渲染文章结构</span>
+            <button type="button" class="editor-btn" onclick="insertMd('\n---\n','')" title="分隔线">-</button>
+            <span class="editor-hint">已按 Markdown 正式渲染文章结构</span>
           </div>
           <textarea class="form-textarea" id="content" name="content" required><%= typeof form !== 'undefined' && form && form.content ? form.content : '' %></textarea>
           <div class="char-counter">
@@ -99,16 +108,22 @@
 
         <div class="form-group">
           <label class="form-check">
-            <input type="checkbox" name="agree" value="1" required>
+            <input type="checkbox" name="agree" value="1" <%= form && form.agree ? 'checked' : '' %> required>
             <span>我确认以上内容为本人真实经历或观点，不涉及捏造、诽谤或侵犯他人知识产权，并理解本平台为非正式学术交流空间。 <span class="required">*</span></span>
           </label>
         </div>
 
-        <button class="btn-submit" type="submit">提交投稿</button>
+        <div class="submit-action-bar">
+          <div class="submit-action-bar__meta">
+            <strong>提交前检查</strong>
+            <span>系统会阻止重复提交，并在成功后自动清理本地草稿。</span>
+          </div>
+          <button class="btn-submit" type="submit" id="submitBtn">提交投稿</button>
+        </div>
       </form>
 
-      <aside class="form-sidebar">
-        <div class="sidebar-card">
+      <aside class="form-sidebar form-sidebar--enhanced">
+        <div class="sidebar-card sidebar-card--highlight">
           <h3 class="sidebar-card__title">会员加成</h3>
           <div class="sidebar-card__body">
             <p>注册会员后，你将获得：</p>
@@ -116,6 +131,7 @@
               <li>投稿自动归入个人工作台</li>
               <li>审核状态通知</li>
               <li>文章收藏清单</li>
+              <li>会员身份徽章展示</li>
             </ul>
           </div>
         </div>
@@ -143,38 +159,40 @@
 
 <%- include('partials/footer') %>
 <script>
-document.getElementById('author_mode').addEventListener('change', function(){
-  document.getElementById('penNameGroup').style.display = this.value !== 'anonymous' ? '' : 'none';
-});
+(function(){
+  var authorMode = document.getElementById('author_mode');
+  var penNameGroup = document.getElementById('penNameGroup');
+  var form = document.getElementById('submitForm');
+  var submitBtn = document.getElementById('submitBtn');
+  var ta = document.getElementById('content');
+  var cc = document.getElementById('charCount');
+  var key = 'nrr-draft';
+  var hint = document.getElementById('autosaveHint');
+  var fields = ['title','discipline','section','content','value_note','pen_name','author_mode'];
+  var isSuccess = '<%= typeof success !== "undefined" && success ? "1" : "" %>';
 
-var ta = document.getElementById('content');
-var cc = document.getElementById('charCount');
-if (ta && cc) {
+  function syncAuthorMode() {
+    if (!authorMode || !penNameGroup) return;
+    penNameGroup.style.display = authorMode.value !== 'anonymous' ? '' : 'none';
+  }
+
   function updateCount(){
+    if (!ta || !cc) return;
     var len = ta.value.length;
     cc.textContent = '已输入 ' + len + ' 字';
     cc.style.color = (len >= 500 && len <= 3000) ? '#3A7D44' : (len > 3000 ? '#8B2500' : '');
   }
-  ta.addEventListener('input', updateCount);
-  updateCount();
-}
 
-function insertMd(before, after) {
-  var ta = document.getElementById('content');
-  var start = ta.selectionStart, end = ta.selectionEnd;
-  var sel = ta.value.substring(start, end);
-  ta.value = ta.value.substring(0, start) + before + sel + after + ta.value.substring(end);
-  ta.focus();
-  ta.selectionStart = start + before.length;
-  ta.selectionEnd = start + before.length + sel.length;
-  ta.dispatchEvent(new Event('input'));
-}
-
-(function(){
-  var form = document.getElementById('submitForm');
-  var key = 'nrr-draft';
-  var hint = document.getElementById('autosaveHint');
-  var fields = ['title','discipline','section','content','value_note','pen_name'];
+  window.insertMd = function(before, after) {
+    if (!ta) return;
+    var start = ta.selectionStart, end = ta.selectionEnd;
+    var sel = ta.value.substring(start, end);
+    ta.value = ta.value.substring(0, start) + before + sel + after + ta.value.substring(end);
+    ta.focus();
+    ta.selectionStart = start + before.length;
+    ta.selectionEnd = start + before.length + sel.length;
+    ta.dispatchEvent(new Event('input'));
+  };
 
   function saveDraft(){
     var data = {};
@@ -183,11 +201,14 @@ function insertMd(before, after) {
       if(el) data[f] = el.value;
     });
     localStorage.setItem(key, JSON.stringify(data));
-    if(hint) { hint.textContent = '草稿已自动保存'; setTimeout(function(){ hint.textContent=''; }, 2000); }
+    if(hint) {
+      hint.textContent = '草稿已自动保存';
+      setTimeout(function(){ if (hint.textContent === '草稿已自动保存') hint.textContent=''; }, 2000);
+    }
   }
 
   function loadDraft(){
-    try{
+    try {
       var d = JSON.parse(localStorage.getItem(key));
       if(!d) return;
       var hasContent = false;
@@ -199,18 +220,40 @@ function insertMd(before, after) {
         }
       });
       if(hasContent && hint) hint.textContent = '已恢复上次草稿';
-    }catch(e){}
+    } catch (e) {}
   }
 
-  var isSuccess = '<%= typeof success !== "undefined" && success ? "1" : "" %>';
+  if (authorMode) {
+    authorMode.addEventListener('change', syncAuthorMode);
+    syncAuthorMode();
+  }
+
+  if (ta) {
+    ta.addEventListener('input', updateCount);
+    updateCount();
+  }
+
   if(!isSuccess) loadDraft();
 
   fields.forEach(function(f){
     var el = document.getElementById(f);
-    if(el) el.addEventListener('input', function(){ clearTimeout(window._saveTimer); window._saveTimer = setTimeout(saveDraft, 2000); });
+    if(el) el.addEventListener('input', function(){ clearTimeout(window._saveTimer); window._saveTimer = setTimeout(saveDraft, 1200); });
   });
 
-  if(form) form.addEventListener('submit', function(){ localStorage.removeItem(key); });
+  if (form) {
+    form.addEventListener('submit', function(){
+      if (submitBtn && submitBtn.dataset.submitted === '1') {
+        return false;
+      }
+      if (submitBtn) {
+        submitBtn.dataset.submitted = '1';
+        submitBtn.disabled = true;
+        submitBtn.textContent = '正在提交...';
+      }
+      localStorage.removeItem(key);
+    });
+  }
+
   if(isSuccess) localStorage.removeItem(key);
 })();
 </script>

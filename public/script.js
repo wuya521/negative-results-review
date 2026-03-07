@@ -1,10 +1,21 @@
-(function () {
+﻿(function () {
   'use strict';
 
-  /* ---------- Navigation scroll ---------- */
   var nav = document.getElementById('nav');
   var navToggle = document.getElementById('navToggle');
   var navLinks = document.getElementById('navLinks');
+  var themeToggle = document.getElementById('themeToggle');
+  var backBtn = document.getElementById('backToTop');
+  var modalOverlay = document.getElementById('columnModal');
+  var modalClose = document.getElementById('modalClose');
+  var modalTag = document.getElementById('modalTag');
+  var modalTitle = document.getElementById('modalTitle');
+  var modalBody = document.getElementById('modalBody');
+
+  function toggleNavLabel(isOpen) {
+    if (!navToggle) return;
+    navToggle.textContent = isOpen ? 'X' : '☰';
+  }
 
   if (nav) {
     window.addEventListener('scroll', function () {
@@ -13,25 +24,26 @@
   }
 
   if (navToggle && navLinks) {
+    toggleNavLabel(false);
     navToggle.addEventListener('click', function () {
       var isOpen = navLinks.classList.toggle('open');
-      navToggle.textContent = isOpen ? '✕' : '☰';
+      toggleNavLabel(isOpen);
     });
-    navLinks.querySelectorAll('a').forEach(function (a) {
-      a.addEventListener('click', function () {
+
+    navLinks.querySelectorAll('a').forEach(function (link) {
+      link.addEventListener('click', function () {
         navLinks.classList.remove('open');
-        navToggle.textContent = '☰';
+        toggleNavLabel(false);
       });
     });
   }
 
-  /* ---------- Dark mode toggle ---------- */
-  var themeToggle = document.getElementById('themeToggle');
   if (themeToggle) {
     function updateToggleIcon() {
       var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      themeToggle.textContent = isDark ? '☀' : '◐';
+      themeToggle.textContent = isDark ? '○' : '◐';
     }
+
     updateToggleIcon();
 
     themeToggle.addEventListener('click', function () {
@@ -47,83 +59,94 @@
     });
   }
 
-  /* ---------- Back to top ---------- */
-  var backBtn = document.getElementById('backToTop');
   if (backBtn) {
     window.addEventListener('scroll', function () {
       backBtn.classList.toggle('visible', window.scrollY > 400);
     }, { passive: true });
+
     backBtn.addEventListener('click', function () {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   }
 
-  /* ---------- Scroll fade-in ---------- */
   var fadeEls = document.querySelectorAll('.fade-in');
   if ('IntersectionObserver' in window && fadeEls.length) {
-    var obs = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); }
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
       });
     }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-    fadeEls.forEach(function (el) { obs.observe(el); });
+
+    fadeEls.forEach(function (el) { observer.observe(el); });
   } else {
     fadeEls.forEach(function (el) { el.classList.add('visible'); });
   }
 
-  /* ---------- Column modal ---------- */
-  var modalOverlay = document.getElementById('columnModal');
-  var modalClose   = document.getElementById('modalClose');
-  var modalTag     = document.getElementById('modalTag');
-  var modalTitle   = document.getElementById('modalTitle');
-  var modalBody    = document.getElementById('modalBody');
-
   document.querySelectorAll('.col-card[data-title]').forEach(function (card) {
-    card.addEventListener('click', function (e) {
+    card.addEventListener('click', function (event) {
       if (!modalOverlay) return;
-      e.preventDefault();
-      if (modalTag)   modalTag.textContent   = card.getAttribute('data-index');
-      if (modalTitle) modalTitle.textContent = card.getAttribute('data-title');
-      if (modalBody)  modalBody.innerHTML    = '<p>' + card.getAttribute('data-desc') + '</p>';
+      event.preventDefault();
+      if (modalTag) modalTag.textContent = card.getAttribute('data-index') || '';
+      if (modalTitle) modalTitle.textContent = card.getAttribute('data-title') || '';
+      if (modalBody) modalBody.innerHTML = '<p>' + (card.getAttribute('data-desc') || '') + '</p>';
       modalOverlay.classList.add('active');
       document.body.style.overflow = 'hidden';
     });
   });
 
   function closeModal() {
-    if (modalOverlay) { modalOverlay.classList.remove('active'); document.body.style.overflow = ''; }
+    if (!modalOverlay) return;
+    modalOverlay.classList.remove('active');
+    document.body.style.overflow = '';
   }
-  if (modalClose)   modalClose.addEventListener('click', closeModal);
-  if (modalOverlay) modalOverlay.addEventListener('click', function (e) { if (e.target === modalOverlay) closeModal(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
 
-  /* ---------- Smooth scroll ---------- */
-  document.querySelectorAll('a[href^="#"]').forEach(function (a) {
-    a.addEventListener('click', function (e) {
-      var id = this.getAttribute('href');
+  if (modalClose) modalClose.addEventListener('click', closeModal);
+  if (modalOverlay) {
+    modalOverlay.addEventListener('click', function (event) {
+      if (event.target === modalOverlay) closeModal();
+    });
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') closeModal();
+  });
+
+  document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+    anchor.addEventListener('click', function (event) {
+      var id = anchor.getAttribute('href');
       if (id === '#') return;
       var target = document.querySelector(id);
-      if (target) {
-        e.preventDefault();
-        var offset = nav ? nav.offsetHeight : 0;
-        window.scrollTo({ top: target.getBoundingClientRect().top + window.pageYOffset - offset, behavior: 'smooth' });
-      }
+      if (!target) return;
+      event.preventDefault();
+      var offset = nav ? nav.offsetHeight : 0;
+      window.scrollTo({
+        top: target.getBoundingClientRect().top + window.pageYOffset - offset,
+        behavior: 'smooth'
+      });
     });
   });
 
-  /* ---------- Toast from query param ---------- */
   var params = new URLSearchParams(window.location.search);
   if (params.get('success') === '1') {
-    showToast('投稿已提交，感谢你的记录。编辑部将在 7 个工作日内审阅。');
+    showToast('投稿已成功提交，请使用稿件编号继续追踪进度。');
     history.replaceState(null, '', window.location.pathname);
   }
 
-  function showToast(msg) {
-    var t = document.getElementById('toast');
-    if (!t) { t = document.createElement('div'); t.className = 'toast'; t.id = 'toast'; document.body.appendChild(t); }
-    t.textContent = msg;
-    t.classList.add('show');
-    setTimeout(function () { t.classList.remove('show'); }, 4000);
+  function showToast(message) {
+    var toast = document.getElementById('toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.id = 'toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(function () {
+      toast.classList.remove('show');
+    }, 4000);
   }
-
 })();

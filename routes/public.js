@@ -1,10 +1,18 @@
 ﻿const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { requireMember } = require('../middleware/auth');
 const { SECTIONS, PER_PAGE_PUBLIC, estimateReadingTime } = require('../config/constants');
 
 const router = express.Router();
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+const MEMBER_TIER_LABELS = {
+  member: '普通会员',
+  supporter: '支持会员',
+  contributor: '投稿协作会员',
+  editorial: '编辑协作身份',
+};
 
 async function createNotification(db, userId, title, content, link) {
   if (!userId) return;
@@ -20,6 +28,7 @@ function getDashboardFeedback(query) {
     password_saved: '密码已更新，请妥善保管。',
     application_sent: '会员申请已提交，等待后台审核。',
     notification_read: '通知已标记为已读。',
+    notifications_cleared: '所有通知已标记为已读。',
   };
   const errors = {
     profile_invalid: '昵称不能为空，且长度不能超过 80 个字符。',
@@ -34,6 +43,48 @@ function getDashboardFeedback(query) {
   return {
     message: messages[query.msg] || null,
     error: errors[query.error] || null,
+  };
+}
+
+function createSubmitToken(req) {
+  req.session.submitToken = crypto.randomBytes(24).toString('hex');
+  return req.session.submitToken;
+}
+
+function getSubmissionFingerprint(payload) {
+  const fields = [
+    payload.title,
+    payload.discipline,
+    payload.section,
+    payload.author_mode,
+    payload.pen_name,
+    payload.content,
+    payload.value_note,
+  ];
+
+  return crypto
+    .createHash('sha256')
+    .update(
+      fields
+        .map(item => String(item || '').trim().replace(/\s+/g, ' '))
+        .join('\n--nrr--\n')
+    )
+    .digest('hex');
+}
+
+function buildSubmitViewModel(req, overrides = {}) {
+  const submitToken = overrides.submitToken || req.session.submitToken || createSubmitToken(req);
+  return {
+    success: overrides.success !== undefined ? overrides.success : req.query.success === '1',
+    duplicateDetected: overrides.duplicateDetected !== undefined ? overrides.duplicateDetected : req.query.duplicate === '1',
+    submissionNo: overrides.submissionNo !== undefined ? overrides.submissionNo : (req.query.no || null),
+    error: overrides.error || null,
+    form: overrides.form || {},
+    sections: SECTIONS,
+    submitToken,
+    memberHint: req.session.user
+      ? '会员投稿会自动归入你的工作台，并附带身份徽章与站内通知。'
+      : '登录后投稿可自动归档到会员工作台，便于后续追踪与收藏。',
   };
 }
 
@@ -159,17 +210,28 @@ module.exports = function (submitLimiter, csrfCheck) {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const [rows] = await db.execute('SELECT * FROM users WHERE email = ? AND is_active = 1', [normalizedEmail]);
-    if (rows.length === 0 || !bcrypt.compareSync(password, rows[0].password_hash)) {
+    const [rows] = await db.execute('SELECT * FROM users WHERE email = ? LIMIT 1', [normalizedEmail]);
+
+    if (rows.length === 0) {
       return res.render('login', { error: '邮箱或密码错误。', form, nextUrl: next || '/me' });
     }
 
-    await db.execute('UPDATE users SET last_login_at = NOW() WHERE id = ?', [rows[0].id]);
+    const user = rows[0];
+    if (Number(user.is_active) !== 1) {
+      delete req.session.user;
+      return res.render('login', { error: '账号已被封禁，请联系管理员。', form, nextUrl: next || '/me' });
+    }
+
+    if (!bcrypt.compareSync(password, user.password_hash)) {
+      return res.render('login', { error: '邮箱或密码错误。', form, nextUrl: next || '/me' });
+    }
+
+    await db.execute('UPDATE users SET last_login_at = NOW() WHERE id = ?', [user.id]);
     req.session.user = {
-      id: rows[0].id,
-      email: rows[0].email,
-      display_name: rows[0].display_name,
-      member_tier: rows[0].member_tier || 'member'
+      id: user.id,
+      email: user.email,
+      display_name: user.display_name,
+      member_tier: user.member_tier || 'member'
     };
 
     res.redirect(next || '/me');
@@ -188,7 +250,7 @@ module.exports = function (submitLimiter, csrfCheck) {
       req.session.user.display_name = data.profile.display_name;
       req.session.user.member_tier = data.profile.member_tier;
     }
-    res.render('member-dashboard', { ...data, feedback });
+    res.render('member-dashboard', { ...data, feedback, memberTierLabels: MEMBER_TIER_LABELS });
   }));
 
   router.post('/me/profile', requireMember, csrfCheck, wrap(async (req, res) => {
@@ -260,34 +322,84 @@ module.exports = function (submitLimiter, csrfCheck) {
     res.redirect('/me?msg=notification_read');
   }));
 
+  router.post('/notifications/read-all', requireMember, csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    await db.execute('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0', [req.session.user.id]);
+    res.redirect('/me?msg=notifications_cleared');
+  }));
+
   router.get('/submit', (req, res) => {
-    res.render('submit', {
-      success: req.query.success === '1',
-      submissionNo: req.query.no || null,
-      sections: SECTIONS,
-      memberHint: req.session.user ? '该稿件会自动归入你的会员工作台。' : null,
-    });
+    const submitToken = createSubmitToken(req);
+    res.render('submit', buildSubmitViewModel(req, { submitToken }));
   });
 
   router.post('/submit', submitLimiter, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    const { title, discipline, section, author_mode, pen_name, content, value_note, agree } = req.body;
+    const { title, discipline, section, author_mode, pen_name, content, value_note, agree, submit_token } = req.body;
+    const form = { title, discipline, section, author_mode, pen_name, content, value_note, agree };
+
+    if (!submit_token || submit_token !== req.session.submitToken) {
+      const nextToken = createSubmitToken(req);
+      return res.status(409).render('submit', buildSubmitViewModel(req, {
+        error: '这份投稿表单已经失效。请刷新页面后重新提交，系统已阻止重复投稿。',
+        form,
+        submitToken: nextToken,
+      }));
+    }
+
+    createSubmitToken(req);
 
     if (!title || !discipline || !section || !content || !agree) {
-      return res.render('submit', {
+      return res.render('submit', buildSubmitViewModel(req, {
         error: '请完整填写必填项后再提交。',
-        sections: SECTIONS,
-        form: req.body,
-        memberHint: req.session.user ? '该稿件会自动归入你的会员工作台。' : null,
-      });
+        form,
+      }));
+    }
+
+    const cleanedTitle = title.trim();
+    const cleanedDiscipline = discipline.trim();
+    const cleanedContent = content.trim();
+    const cleanedValueNote = (value_note || '').trim();
+    const userId = req.session.user ? req.session.user.id : null;
+
+    if (userId) {
+      const [duplicates] = await db.execute(
+        `SELECT submission_no FROM manuscripts
+         WHERE user_id = ? AND title = ? AND content = ?
+           AND created_at >= (NOW() - INTERVAL 30 MINUTE)
+         ORDER BY id DESC LIMIT 1`,
+        [userId, cleanedTitle, cleanedContent]
+      );
+      if (duplicates.length > 0) {
+        return res.redirect(`/submit?success=1&duplicate=1&no=${encodeURIComponent(duplicates[0].submission_no)}`);
+      }
+    }
+
+    const fingerprint = getSubmissionFingerprint({
+      title: cleanedTitle,
+      discipline: cleanedDiscipline,
+      section,
+      author_mode,
+      pen_name,
+      content: cleanedContent,
+      value_note: cleanedValueNote,
+    });
+    const lastSubmission = req.session.lastSubmission || null;
+    const submissionActor = userId || `guest:${req.ip}`;
+
+    if (
+      lastSubmission &&
+      lastSubmission.fingerprint === fingerprint &&
+      lastSubmission.actor === submissionActor &&
+      Date.now() - Number(lastSubmission.createdAt || 0) < 15 * 60 * 1000
+    ) {
+      return res.redirect(`/submit?success=1&duplicate=1&no=${encodeURIComponent(lastSubmission.submissionNo)}`);
     }
 
     const year = new Date().getFullYear();
     const [rows] = await db.execute(
       'SELECT submission_no FROM manuscripts WHERE submission_no LIKE ? ORDER BY submission_no DESC LIMIT 1',
-      [
-        `NRR-${year}-%`
-      ]
+      [`NRR-${year}-%`]
     );
     let seq = 1;
     if (rows.length > 0) {
@@ -296,22 +408,28 @@ module.exports = function (submitLimiter, csrfCheck) {
     }
     const submissionNo = `NRR-${year}-${String(seq).padStart(3, '0')}`;
 
-    const userId = req.session.user ? req.session.user.id : null;
     await db.execute(
       `INSERT INTO manuscripts (submission_no, title, discipline, section, author_mode, pen_name, user_id, content, value_note)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         submissionNo,
-        title.trim(),
-        discipline.trim(),
+        cleanedTitle,
+        cleanedDiscipline,
         section,
         author_mode || 'anonymous',
         pen_name || null,
         userId,
-        content.trim(),
-        value_note || null
+        cleanedContent,
+        cleanedValueNote || null
       ]
     );
+
+    req.session.lastSubmission = {
+      fingerprint,
+      actor: submissionActor,
+      submissionNo,
+      createdAt: Date.now(),
+    };
 
     if (userId) {
       await createNotification(db, userId, '投稿已提交', `稿件 ${submissionNo} 已进入编辑队列。你可以在会员工作台持续跟踪状态。`, '/me');

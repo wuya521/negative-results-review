@@ -11,6 +11,13 @@ const { STATUS_LABELS, RISK_LABELS, SECTIONS, STATUSES, estimateReadingTime } = 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const MEMBER_TIER_META = {
+  member: { label: '普通会员', shortLabel: 'MEMBER', className: 'tier-badge--member' },
+  supporter: { label: '支持会员', shortLabel: 'SUPPORTER', className: 'tier-badge--supporter' },
+  contributor: { label: '投稿协作会员', shortLabel: 'CONTRIBUTOR', className: 'tier-badge--contributor' },
+  editorial: { label: '编辑协作身份', shortLabel: 'EDITORIAL', className: 'tier-badge--editorial' },
+};
+
 app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -70,6 +77,10 @@ function csrfCheck(req, res, next) {
     });
   }
   next();
+}
+
+function getMemberTierMeta(tier) {
+  return MEMBER_TIER_META[tier] || MEMBER_TIER_META.member;
 }
 
 async function start() {
@@ -143,6 +154,7 @@ async function start() {
         return t.split(',').map(s => s.trim()).filter(Boolean);
       };
       res.locals.estimateReadingTime = estimateReadingTime;
+      res.locals.memberTierMeta = getMemberTierMeta;
       res.locals.sections = SECTIONS;
       res.locals.statuses = STATUSES;
     }).then(() => next(), next);

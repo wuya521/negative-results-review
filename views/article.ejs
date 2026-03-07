@@ -19,6 +19,14 @@
   <div class="container article-shell article-shell--reading">
     <aside class="reading-aside fade-in">
       <a href="javascript:history.back()" class="article-detail__back">← 返回</a>
+      <div class="reading-card reading-card--mobile-title">
+        <div class="reading-card__label">文章信息</div>
+        <div class="reading-mobile-meta">
+          <span><%= article.section %></span>
+          <span><%= article.discipline %></span>
+          <span>约 <%= readingTime %> 分钟阅读</span>
+        </div>
+      </div>
       <div class="reading-card">
         <div class="reading-card__label">作者</div>
         <div><%= article.author_mode === 'anonymous' ? '匿名' : (article.pen_name || '匿名') %></div>
@@ -29,13 +37,17 @@
       </div>
       <div class="reading-card">
         <div class="reading-card__label">会员动作</div>
-        <% if (currentUser) { %>
+        <% if (currentUser) { const currentTier = memberTierMeta(currentUser.member_tier); %>
+        <div class="reading-member-meta">
+          <span class="tier-badge tier-badge--compact <%= currentTier.className %>"><%= currentTier.label %></span>
+          <p>已登录会员可收藏、追踪投稿，并同步到工作台。</p>
+        </div>
         <form method="POST" action="/article/<%= article.id %>/favorite">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button class="member-action-btn" type="submit"><%= isFavorited ? '取消收藏' : '收藏文章' %></button>
         </form>
         <% } else { %>
-        <a href="/login?next=<%= encodeURIComponent('/article/' + article.id) %>" class="member-action-link">登录后收藏</a>
+        <a href="/login?next=<%= encodeURIComponent('/article/' + article.id) %>" class="member-action-link">登录后收藏并同步工作台</a>
         <% } %>
       </div>
     </aside>
@@ -116,7 +128,7 @@
           <div class="comment-form__row">
             <textarea name="content" placeholder="写下你的想法..." class="comment-textarea" required maxlength="2000" rows="4"></textarea>
           </div>
-          <button type="submit" class="btn-submit" style="padding:.6rem 2rem;font-size:.82rem">发表留言</button>
+          <button type="submit" class="btn-submit" style="padding:.6rem 2rem;font-size:.82rem">发表评论</button>
         </form>
       </div>
     </div>
@@ -131,7 +143,9 @@ function shareToWeibo(){
 }
 function copyLink(){
   navigator.clipboard.writeText(location.href).then(function(){
-    var b=document.getElementById('copyBtn');b.textContent='已复制';setTimeout(function(){b.textContent='复制链接'},2000);
+    var b=document.getElementById('copyBtn');
+    b.textContent='已复制';
+    setTimeout(function(){b.textContent='复制链接';},2000);
   });
 }
 </script>

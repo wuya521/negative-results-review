@@ -7,18 +7,22 @@
       <a href="/submit">投稿</a>
       <a href="/track">追踪</a>
       <a href="/about">关于</a>
-      <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+      <% if (typeof currentUser !== 'undefined' && currentUser) { const navTier = memberTierMeta(currentUser.member_tier); %>
       <a href="/me">会员工作台<% if (typeof unreadNotifications !== 'undefined' && unreadNotifications) { %> (<%= unreadNotifications %>)<% } %></a>
+      <span class="tier-badge nav-tier-badge <%= navTier.className %>"><%= navTier.shortLabel %></span>
       <% } else { %>
       <a href="/login">登录</a>
       <% } %>
     </div>
     <div class="nav-actions">
-      <% if (typeof currentUser !== 'undefined' && currentUser) { %>
-      <span class="nav-user"><%= currentUser.display_name %></span>
+      <% if (typeof currentUser !== 'undefined' && currentUser) { const actionTier = memberTierMeta(currentUser.member_tier); %>
+      <div class="nav-user-block">
+        <span class="nav-user"><%= currentUser.display_name %></span>
+        <span class="tier-badge tier-badge--compact <%= actionTier.className %>"><%= actionTier.shortLabel %></span>
+      </div>
       <% } %>
       <button class="theme-toggle" id="themeToggle" aria-label="切换深色模式" title="切换深色模式">◐</button>
-      <span class="nav-issue">MEMBER</span>
+      <span class="nav-issue">ISSUE / 2026</span>
       <button class="nav-toggle" id="navToggle" aria-label="菜单">☰</button>
     </div>
   </div>

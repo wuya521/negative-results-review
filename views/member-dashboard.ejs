@@ -3,11 +3,15 @@
 
 <header class="page-header member-hero">
   <div class="container">
+    <% const heroTier = memberTierMeta(profile.member_tier); %>
     <p class="page-header__label">Member Desk / 会员工作台</p>
-    <h1 class="page-header__title"><%= profile.display_name %> 的工作台</h1>
-    <p class="page-header__sub">轻会员负责收藏、通知、投稿归属和申请流转，不改变站点的非正式出版定位。</p>
+    <div class="member-hero__headline">
+      <h1 class="page-header__title"><%= profile.display_name %> 的工作台</h1>
+      <span class="tier-badge tier-badge--hero <%= heroTier.className %>"><%= heroTier.label %></span>
+    </div>
+    <p class="page-header__sub">轻会员负责收藏、通知、投稿归属和申请流转，不改变站点的非正式出版定位，但把个人使用体验做得更完整。</p>
     <div class="member-summary-row">
-      <span class="member-pill">当前等级：<%= ({ member: '普通会员', supporter: '支持会员', contributor: '投稿协作会员', editorial: '编辑协作身份' })[profile.member_tier] || profile.member_tier %></span>
+      <span class="member-pill">当前等级：<%= memberTierLabels[profile.member_tier] || profile.member_tier %></span>
       <span class="member-pill">加入时间：<%= profile.created_at ? String(profile.created_at).substring(0, 10) : '' %></span>
       <span class="member-pill">最近登录：<%= profile.last_login_at ? String(profile.last_login_at).substring(0, 16).replace('T', ' ') : '首次登录' %></span>
     </div>
@@ -41,10 +45,10 @@
         </div>
         <div>
           <span class="member-k">当前权益</span>
-          <strong>收藏 / 通知 / 投稿归属 / 申请审核</strong>
+          <strong>收藏 / 通知 / 投稿归属 / 申请审核 / 身份徽章</strong>
         </div>
       </div>
-      <p class="member-note">如果后续你要引入支持型会员或更高阶协作身份，这里的账户基础不需要重做，只要继续扩展授予规则即可。</p>
+      <p class="member-note">支持会员与协作会员的授予已经接到后台审核流里；你现在看到的工作台就是后续扩展权益的主入口，不需要再拆新系统。</p>
     </section>
 
     <section class="member-panel fade-in">
@@ -115,7 +119,7 @@
             </label>
             <label class="member-form-field">
               <span>申请说明</span>
-              <textarea name="reason" rows="6" minlength="12" maxlength="4000" placeholder="说明你为什么希望升级会员身份，你希望获得什么样的协作支持。" required></textarea>
+              <textarea name="reason" rows="6" minlength="12" maxlength="4000" placeholder="说明你为什么希望升级会员身份，以及你希望获得什么样的协作支持。" required></textarea>
             </label>
             <button type="submit" class="member-action-btn">提交申请</button>
           </form>
@@ -126,17 +130,18 @@
       </div>
       <% if (applications.length) { %>
       <div class="member-list member-list--applications">
-        <% applications.forEach(function(item) { %>
+        <% applications.forEach(function(item) { const appTier = memberTierMeta(item.requested_tier); %>
         <article class="member-item member-item--application">
           <div>
             <div class="member-item__eyebrow">提交于 <%= String(item.created_at).substring(0, 16).replace('T', ' ') %></div>
-            <h3><%= ({ supporter: '支持会员', contributor: '投稿协作会员' })[item.requested_tier] || item.requested_tier %></h3>
+            <h3><%= memberTierLabels[item.requested_tier] || item.requested_tier %></h3>
             <p><%= item.reason %></p>
             <% if (item.admin_note) { %>
             <p class="member-application-admin-note">审核备注：<%= item.admin_note %></p>
             <% } %>
           </div>
           <div class="member-item__meta-block">
+            <span class="tier-badge tier-badge--compact <%= appTier.className %>"><%= appTier.shortLabel %></span>
             <span class="member-badge member-badge--<%= item.status %>"><%= ({ pending: '待审核', approved: '已通过', rejected: '未通过' })[item.status] || item.status %></span>
             <% if (item.reviewer_name) { %>
             <span class="member-item__meta">审核人：<%= item.reviewer_name %></span>
@@ -193,14 +198,22 @@
         <% }) %>
       </div>
       <% } else { %>
-      <p class="member-empty">还没有收藏。文章页会提供收藏按钮。</p>
+      <p class="member-empty">还没有收藏。文章页提供收藏按钮，支持会员徽章会同步显示在工作台。</p>
       <% } %>
     </section>
 
     <section class="member-panel member-panel--wide fade-in">
       <div class="member-panel__head">
         <h2>站内通知</h2>
-        <span class="member-link"><%= notifications.filter(function(item) { return !item.is_read; }).length %> 条未读</span>
+        <% const unreadCount = notifications.filter(function(item) { return !item.is_read; }).length; %>
+        <% if (unreadCount > 0) { %>
+        <form method="POST" action="/notifications/read-all" class="member-inline-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="member-mark-read member-mark-read--ghost">全部标记已读 (<%= unreadCount %>)</button>
+        </form>
+        <% } else { %>
+        <span class="member-link">0 条未读</span>
+        <% } %>
       </div>
       <% if (notifications.length) { %>
       <div class="member-list member-list--notifications">
