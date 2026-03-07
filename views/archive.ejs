@@ -1,67 +1,94 @@
-<%- include('partials/head', { pageTitle: '归档' }) %>
+﻿<%- include('partials/head', { pageTitle: '归档' }) %>
 <%- include('partials/nav') %>
 
-<header class="page-header">
+<header class="page-header archive-header">
   <div class="container">
     <p class="page-header__label">Archive / 归档</p>
     <h1 class="page-header__title">档案馆</h1>
-    <p class="page-header__sub">所有已发布的稿件在此长期公开存档。支持按栏目、年份、关键词全文检索。</p>
+    <p class="page-header__sub">所有已发布稿件都在这里长期公开存档。你可以按栏目、年份和关键词检索，也可以登录后将重要文章加入收藏。</p>
   </div>
 </header>
 
 <main class="section">
-  <div class="container">
-    <form method="GET" action="/archive" class="archive-filters">
-      <span class="filter-tag">筛选</span>
-      <select name="section" class="form-select form-select--sm">
-        <option value="">全部栏目</option>
-        <% sections.forEach(function(s) { %><option value="<%= s %>" <%= filters.section===s?'selected':'' %>><%= s %></option><% }) %>
-      </select>
-      <select name="year" class="form-select form-select--sm">
-        <option value="">全部年份</option>
-        <% years.forEach(function(y) { %><option value="<%= y %>" <%= filters.year===y?'selected':'' %>><%= y %></option><% }) %>
-      </select>
-      <label class="archive-check">
-        <input type="checkbox" name="featured" value="1" <%= filters.featured==='1'?'checked':'' %>> 仅精选
-      </label>
-      <input type="text" name="q" placeholder="搜索标题、学科、正文、标签…" value="<%= filters.q || '' %>" class="form-input form-input--sm" style="width:220px">
-      <button type="submit" class="btn-filter">搜索</button>
-      <% if (filters.section||filters.year||filters.featured||filters.q) { %><a href="/archive" class="filter-clear">清除</a><% } %>
-    </form>
+  <div class="container archive-layout">
+    <aside class="archive-side fade-in">
+      <form method="GET" action="/archive" class="archive-filters archive-filters--stack">
+        <span class="filter-tag">筛选</span>
+        <select name="section" class="form-select form-select--sm">
+          <option value="">全部栏目</option>
+          <% sections.forEach(function(s) { %><option value="<%= s %>" <%= filters.section===s?'selected':'' %>><%= s %></option><% }) %>
+        </select>
+        <select name="year" class="form-select form-select--sm">
+          <option value="">全部年份</option>
+          <% years.forEach(function(y) { %><option value="<%= y %>" <%= filters.year===y?'selected':'' %>><%= y %></option><% }) %>
+        </select>
+        <label class="archive-check">
+          <input type="checkbox" name="featured" value="1" <%= filters.featured==='1'?'checked':'' %>> 仅精选
+        </label>
+        <input type="text" name="q" placeholder="搜索标题、学科、正文、标签..." value="<%= filters.q || '' %>" class="form-input form-input--sm">
+        <button type="submit" class="btn-filter">开始筛选</button>
+        <% if (filters.section || filters.year || filters.featured || filters.q) { %>
+        <a href="/archive" class="filter-clear">清空条件</a>
+        <% } %>
+      </form>
 
-    <% if (articles.length > 0) { %>
-    <div style="font-size:.7rem;color:var(--text-light);margin-bottom:1rem;font-family:var(--font-mono);letter-spacing:.06em">第 <%= page %>/<%= totalPages %> 页</div>
-    <div class="article-list">
-      <% articles.forEach(function(a, i) { %>
-      <a href="/article/<%= a.id %>" class="article-item">
-        <span class="article-index"><%= String((page-1)*10 + i+1).padStart(2,'0') %></span>
+      <div class="archive-side-note fade-in">
+        <span class="archive-side-note__label">READING NOTE</span>
+        <p>建议把这里当作一座索引库，而不是新闻流。用栏目进入，再用标题做二次判断，阅读效率会更高。</p>
+      </div>
+    </aside>
+
+    <section class="archive-main">
+      <div class="archive-topline fade-in">
         <div>
-          <h3 class="article-title"><%= a.title %></h3>
-          <div class="article-tags-row"><%- include('partials/tags', {a: a}) %></div>
+          <strong><%= articles.length %></strong> 篇当前结果
+          <span>第 <%= page %>/<%= totalPages %> 页</span>
         </div>
-        <div class="article-meta-side">
-          <span class="article-column"><%= a.section %></span>
-          <span class="article-date"><%= a.published_at ? a.published_at.substring(0,10).replace(/-/g,'.') : '' %></span>
-          <span class="article-views"><%= a.view_count || 0 %> 阅读</span>
-        </div>
-      </a>
-      <% }) %>
-    </div>
+        <% if (currentUser) { %>
+        <a href="/me" class="member-inline-link">查看我的收藏与通知</a>
+        <% } %>
+      </div>
 
-    <% if (totalPages > 1) { %>
-    <div class="pagination">
-      <% var qs = []; if(filters.section) qs.push('section='+encodeURIComponent(filters.section)); if(filters.year) qs.push('year='+filters.year); if(filters.featured) qs.push('featured=1'); if(filters.q) qs.push('q='+encodeURIComponent(filters.q)); var base='/archive?'+qs.join('&')+(qs.length?'&':''); %>
-      <% if (page > 1) { %><a href="<%= base %>page=<%= page-1 %>" class="page-link">← 上一页</a><% } %>
-      <span class="page-info"><%= page %> / <%= totalPages %></span>
-      <% if (page < totalPages) { %><a href="<%= base %>page=<%= page+1 %>" class="page-link">下一页 →</a><% } %>
-    </div>
-    <% } %>
-    <% } else { %>
-    <div style="text-align:center;padding:4rem 1rem;color:var(--text-light)">
-      <p style="font-size:1.5rem;opacity:.3;margin-bottom:.5rem">◇</p>
-      <p>暂无匹配的归档文章。</p>
-    </div>
-    <% } %>
+      <% if (articles.length > 0) { %>
+      <div class="archive-cards fade-in">
+        <% articles.forEach(function(a, i) { %>
+        <article class="archive-card">
+          <a href="/article/<%= a.id %>" class="archive-card__main">
+            <div class="archive-card__index"><%= String((page - 1) * 10 + i + 1).padStart(2, '0') %></div>
+            <div class="archive-card__content">
+              <div class="archive-card__meta-row">
+                <span class="article-column"><%= a.section %></span>
+                <span class="article-date"><%= a.published_at ? a.published_at.substring(0,10).replace(/-/g,'.') : '' %></span>
+              </div>
+              <h3 class="article-title"><%= a.title %></h3>
+              <p class="article-excerpt">适合用于归纳某一类失败经验、方法问题或投稿过程中的结构性困境。进入正文可查看完整叙述与评论。</p>
+              <div class="article-tags-row"><%- include('partials/tags', { a: a }) %></div>
+            </div>
+          </a>
+          <div class="archive-card__side">
+            <span class="article-views"><%= a.view_count || 0 %> 阅读</span>
+            <% if (currentUser) { %>
+            <a href="/article/<%= a.id %>" class="archive-card__action">阅读并收藏</a>
+            <% } %>
+          </div>
+        </article>
+        <% }) %>
+      </div>
+
+      <% if (totalPages > 1) { %>
+      <div class="pagination">
+        <% var qs = []; if(filters.section) qs.push('section='+encodeURIComponent(filters.section)); if(filters.year) qs.push('year='+filters.year); if(filters.featured) qs.push('featured=1'); if(filters.q) qs.push('q='+encodeURIComponent(filters.q)); var base='/archive?'+qs.join('&')+(qs.length?'&':''); %>
+        <% if (page > 1) { %><a href="<%= base %>page=<%= page-1 %>" class="page-link">← 上一页</a><% } %>
+        <span class="page-info"><%= page %> / <%= totalPages %></span>
+        <% if (page < totalPages) { %><a href="<%= base %>page=<%= page+1 %>" class="page-link">下一页 →</a><% } %>
+      </div>
+      <% } %>
+      <% } else { %>
+      <div class="archive-empty">
+        <p>暂无匹配的归档文章。</p>
+      </div>
+      <% } %>
+    </section>
   </div>
 </main>
 

@@ -1,0 +1,36 @@
+﻿<%- include('partials/head', { pageTitle: '会员登录' }) %>
+<%- include('partials/nav') %>
+
+<header class="page-header page-header--compact">
+  <div class="container narrow-container">
+    <p class="page-header__label">Member Login / 会员登录</p>
+    <h1 class="page-header__title">进入会员工作台</h1>
+    <p class="page-header__sub">登录后可收藏文章、查看通知、管理与你账号关联的投稿。</p>
+  </div>
+</header>
+
+<main class="section">
+  <div class="container narrow-container">
+    <div class="auth-card fade-in">
+      <% if (error) { %>
+      <div class="form-alert form-alert--error"><%= error %></div>
+      <% } %>
+      <form method="POST" action="/login">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="next" value="<%= nextUrl %>">
+        <div class="form-group">
+          <label class="form-label" for="email">邮箱</label>
+          <input class="form-input" id="email" name="email" type="email" required value="<%= form.email || '' %>">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="password">密码</label>
+          <input class="form-input" id="password" name="password" type="password" required>
+        </div>
+        <button class="btn-submit auth-submit" type="submit">登录</button>
+      </form>
+      <p class="auth-switch">还没有账号？<a href="/register<%= nextUrl ? ('?next=' + encodeURIComponent(nextUrl)) : '' %>">创建会员账号</a></p>
+    </div>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

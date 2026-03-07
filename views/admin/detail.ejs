@@ -1,4 +1,4 @@
-<%- include('partials/head', { pageTitle: ms.title }) %>
+﻿<%- include('partials/head', { pageTitle: ms.title }) %>
 <body>
 <div class="layout">
 <%- include('partials/sidebar', { active: '', stats: stats, admin: admin }) %>
@@ -19,7 +19,6 @@
   <div class="content">
     <a href="/admin/manuscripts" class="detail-back">← 返回稿件列表</a>
 
-    <!-- Header Card -->
     <div class="detail-card">
       <h1 class="detail-title"><%= ms.title %></h1>
       <div class="detail-badges">
@@ -38,6 +37,7 @@
         <div class="meta-item"><div class="ml">Archive ID</div><div class="mv mono"><%= ms.submission_no %></div></div>
         <div class="meta-item"><div class="ml">学科方向</div><div class="mv"><%= ms.discipline %></div></div>
         <div class="meta-item"><div class="ml">署名方式</div><div class="mv"><%= ({anonymous:'匿名',pen_name:'笔名',real_name:'实名'})[ms.author_mode] %><%= ms.pen_name ? ' ('+ms.pen_name+')' : '' %></div></div>
+        <div class="meta-item"><div class="ml">会员归属</div><div class="mv"><% if (owner) { %><strong><%= owner.display_name %></strong> · <span class="mono"><%= owner.email %></span><% } else { %>未绑定会员账号<% } %></div></div>
         <div class="meta-item"><div class="ml">风险等级</div><div class="mv"><span class="risk-dot <%= ms.risk_level %>"></span><%= riskLabel(ms.risk_level) %>风险</div></div>
         <div class="meta-item"><div class="ml">浏览量</div><div class="mv mono"><%= ms.view_count || 0 %></div></div>
         <div class="meta-item"><div class="ml">投稿时间</div><div class="mv mono"><%= ms.created_at %></div></div>
@@ -50,14 +50,20 @@
         <% } %>
       </div>
 
+      <% if (owner) { %>
+      <div style="margin-top:1rem;padding:1rem 1.1rem;border:1px solid var(--border);background:var(--bg-alt);font-size:.8rem;line-height:1.8;color:var(--text-sec)">
+        该稿件已与会员账号绑定。后续状态流转会同步写入此用户的站内通知。<br>
+        会员等级：<strong><%= owner.member_tier %></strong> · 最近登录：<span class="mono"><%= owner.last_login_at || '暂无' %></span>
+      </div>
+      <% } %>
+
       <% if (ms.risk_level === 'high') { %>
       <div style="margin-top:1.2rem;background:var(--red-bg);border-left:3px solid var(--accent);padding:.8rem 1rem;font-size:.8rem;color:var(--accent)">
-        ⚠ 高风险稿件 — 请仔细审查是否涉及可识别个人信息、敏感数据或潜在侵权。
+        高风险稿件，请仔细审查是否涉及可识别个人信息、敏感数据或潜在侵权。
       </div>
       <% } %>
     </div>
 
-    <!-- Content Preview -->
     <div class="detail-card">
       <div class="detail-section">
         <div class="ds-label">正文预览</div>
@@ -71,7 +77,6 @@
       <% } %>
     </div>
 
-    <!-- Content Editing -->
     <form method="POST" action="/admin/manuscripts/<%= ms.id %>/content" class="edit-card">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <h3>编辑内容（用于脱敏修改）</h3>
@@ -86,7 +91,6 @@
       <button type="submit" class="btn-save">保存内容修改</button>
     </form>
 
-    <!-- Metadata Editing -->
     <form method="POST" action="/admin/manuscripts/<%= ms.id %>" class="edit-card">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <h3>审核信息与标签</h3>
@@ -123,13 +127,12 @@
 
       <div class="edit-note">
         <label for="editor_note" style="display:block;font-size:.68rem;letter-spacing:.06em;color:var(--text-light);font-family:var(--font-mono);text-transform:uppercase;margin-bottom:.3rem">编辑备注（退修时此内容将对投稿者可见）</label>
-        <textarea name="editor_note" id="editor_note" placeholder="在此添加编辑备注…"><%= ms.editor_note || '' %></textarea>
+        <textarea name="editor_note" id="editor_note" placeholder="在此添加编辑备注..."><%= ms.editor_note || '' %></textarea>
       </div>
 
       <button type="submit" class="btn-save">保存审核信息</button>
     </form>
 
-    <!-- Status Actions with Confirmation -->
     <div class="status-card">
       <h3>状态流转</h3>
       <p>当前状态：<strong><%= statusLabel(ms.status) %></strong></p>
@@ -151,8 +154,7 @@
            if (['rejected','archived'].includes(ms.status)) actions.push({s:'pending',l:'重置为待审',c:'',confirm:true});
         %>
         <% actions.forEach(function(a) { %>
-        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline"
-              <% if (a.confirm) { %>onsubmit="return confirm('确认将此稿件设为「<%= statusLabel(a.s) %>」？此操作将被记录。')"<% } %>>
+        <form method="POST" action="/admin/manuscripts/<%= ms.id %>/status" style="display:inline" <% if (a.confirm) { %>onsubmit="return confirm('确认将此稿件设为「<%= statusLabel(a.s) %>」？此操作将被记录。')"<% } %>>
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <input type="hidden" name="status" value="<%= a.s %>">
           <button type="submit" class="act-btn <%= a.c %>"><%= a.l %></button>
@@ -161,7 +163,6 @@
       </div>
     </div>
 
-    <!-- Operation Log for this manuscript -->
     <% if (logs && logs.length > 0) { %>
     <div class="detail-card" style="margin-top:1.5rem">
       <h3 style="font-family:var(--font-serif);font-size:.92rem;font-weight:700;margin-bottom:1rem">操作记录</h3>

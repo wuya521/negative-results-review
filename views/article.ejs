@@ -1,117 +1,124 @@
-<%- include('partials/head', { pageTitle: article.title, pageDesc: (article.content||'').substring(0,150), ogType: 'article' }) %>
+﻿<%- include('partials/head', { pageTitle: article.title, pageDesc: (article.content || '').substring(0, 150), ogType: 'article' }) %>
 <%- include('partials/nav') %>
 
-<header class="page-header">
-  <div class="container">
+<header class="page-header reading-header">
+  <div class="container article-shell">
     <p class="page-header__label">Archive No. <%= article.submission_no %></p>
-    <h1 class="page-header__title">文章详情</h1>
+    <h1 class="page-header__title reading-title"><%= article.title %></h1>
+    <div class="article-detail__meta reading-meta">
+      <span><%= article.section %></span>
+      <span><%= article.discipline %></span>
+      <span><%= article.published_at ? article.published_at.substring(0,10) : article.created_at.substring(0,10) %></span>
+      <span>约 <%= readingTime %> 分钟阅读</span>
+      <span><%= article.view_count || 0 %> 次阅读</span>
+    </div>
   </div>
 </header>
 
-<main class="section">
-  <div class="article-detail">
-    <a href="javascript:history.back()" class="article-detail__back">← 返回</a>
-
-    <header class="article-detail__header fade-in">
-      <span class="article-detail__column"><%= article.section %></span>
-      <h1 class="article-detail__title"><%= article.title %></h1>
-      <div class="article-tags-row" style="margin-bottom:1rem">
-        <%- include('partials/tags', { a: article }) %>
+<main class="section reading-page">
+  <div class="container article-shell article-shell--reading">
+    <aside class="reading-aside fade-in">
+      <a href="javascript:history.back()" class="article-detail__back">← 返回</a>
+      <div class="reading-card">
+        <div class="reading-card__label">作者</div>
+        <div><%= article.author_mode === 'anonymous' ? '匿名' : (article.pen_name || '匿名') %></div>
       </div>
-      <div class="article-detail__meta">
-        <span>作者：<%= article.author_mode === 'anonymous' ? '匿名' : (article.pen_name || '匿名') %></span>
-        <span>日期：<%= article.published_at ? article.published_at.substring(0,10) : article.created_at.substring(0,10) %></span>
-        <span>编号：<%= article.submission_no %></span>
-        <span>学科：<%= article.discipline %></span>
-        <span>约 <%= readingTime %> 分钟阅读</span>
-        <span><%= article.view_count || 0 %> 次阅读</span>
+      <div class="reading-card">
+        <div class="reading-card__label">标签</div>
+        <div class="article-tags-row compact-tags"><%- include('partials/tags', { a: article }) %></div>
       </div>
-    </header>
-
-    <!-- Share bar -->
-    <div class="share-bar fade-in">
-      <span class="share-label">分享：</span>
-      <button class="share-btn" onclick="shareToWeibo()" title="分享到微博">微博</button>
-      <button class="share-btn" onclick="copyLink()" title="复制链接" id="copyBtn">复制链接</button>
-      <button class="share-btn" onclick="window.print()" title="打印">打印</button>
-    </div>
-
-    <% if (article.editor_note) { %>
-    <div class="editor-note fade-in">
-      <p class="editor-note__label">编辑部短评</p>
-      <p><%= article.editor_note %></p>
-    </div>
-    <% } %>
-
-    <article class="article-body fade-in">
-      <%- formatContent(article.content) %>
-    </article>
-
-    <% if (article.value_note) { %>
-    <div class="value-note-box fade-in">
-      <span class="value-note-label">投稿者价值说明</span><br>
-      <%= article.value_note %>
-    </div>
-    <% } %>
-
-    <div class="article-tags fade-in">
-      <span class="article-tag"><%= article.section %></span>
-      <span class="article-tag"><%= article.discipline %></span>
-      <% if (article.tags) { parseTags(article.tags).forEach(function(t) { %>
-      <span class="article-tag"><%= t %></span>
-      <% }) } %>
-    </div>
-
-    <!-- Related articles -->
-    <% if (related && related.length > 0) { %>
-    <div class="related-section fade-in">
-      <h3 class="related-title">相关阅读</h3>
-      <div class="related-grid">
-        <% related.forEach(function(r) { %>
-        <a href="/article/<%= r.id %>" class="related-card">
-          <span class="related-card__section"><%= r.section %></span>
-          <h4 class="related-card__title"><%= r.title %></h4>
-          <span class="related-card__meta"><%= r.published_at ? r.published_at.substring(0,10) : '' %> · <%= r.view_count || 0 %> 次阅读</span>
-        </a>
-        <% }) %>
+      <div class="reading-card">
+        <div class="reading-card__label">会员动作</div>
+        <% if (currentUser) { %>
+        <form method="POST" action="/article/<%= article.id %>/favorite">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button class="member-action-btn" type="submit"><%= isFavorited ? '取消收藏' : '收藏文章' %></button>
+        </form>
+        <% } else { %>
+        <a href="/login?next=<%= encodeURIComponent('/article/' + article.id) %>" class="member-action-link">登录后收藏</a>
+        <% } %>
       </div>
-    </div>
-    <% } %>
+    </aside>
 
-    <!-- Comments -->
-    <div class="comments-section fade-in" id="comments">
-      <h3 class="comments-title">读者留言 (<%= comments.length %>)</h3>
-
-      <% if (comments.length > 0) { %>
-      <div class="comments-list">
-        <% comments.forEach(function(c) { %>
-        <div class="comment-item">
-          <div class="comment-header">
-            <span class="comment-nick"><%= c.nickname %></span>
-            <span class="comment-time"><%= c.created_at %></span>
-          </div>
-          <div class="comment-body"><%= c.content %></div>
-        </div>
-        <% }) %>
+    <div class="reading-main">
+      <div class="share-bar fade-in">
+        <span class="share-label">分享：</span>
+        <button class="share-btn" onclick="shareToWeibo()" title="分享到微博">微博</button>
+        <button class="share-btn" onclick="copyLink()" title="复制链接" id="copyBtn">复制链接</button>
+        <button class="share-btn" onclick="window.print()" title="打印">打印</button>
       </div>
-      <% } else { %>
-      <p class="comments-empty">还没有留言，来写第一条吧。</p>
+
+      <% if (article.editor_note) { %>
+      <div class="editor-note fade-in">
+        <p class="editor-note__label">编辑部短评</p>
+        <p><%= article.editor_note %></p>
+      </div>
       <% } %>
 
-      <form class="comment-form" method="POST" action="/article/<%= article.id %>/comment">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <div class="comment-form__row">
-          <input type="text" name="nickname" placeholder="昵称（可选，默认匿名读者）" class="comment-input" maxlength="100">
-        </div>
-        <div class="comment-form__row">
-          <textarea name="content" placeholder="写下你的想法…" class="comment-textarea" required maxlength="2000" rows="3"></textarea>
-        </div>
-        <button type="submit" class="btn-submit" style="padding:.6rem 2rem;font-size:.82rem">发表留言</button>
-      </form>
-    </div>
+      <article class="article-body article-body--longform fade-in">
+        <%- formatContent(article.content) %>
+      </article>
 
-    <div style="margin-top:2.5rem">
-      <a href="/archive" class="article-detail__back">← 浏览更多归档文章</a>
+      <% if (article.value_note) { %>
+      <div class="value-note-box fade-in">
+        <span class="value-note-label">投稿者价值说明</span><br>
+        <%= article.value_note %>
+      </div>
+      <% } %>
+
+      <div class="article-tags fade-in">
+        <span class="article-tag"><%= article.section %></span>
+        <span class="article-tag"><%= article.discipline %></span>
+        <% if (article.tags) { parseTags(article.tags).forEach(function(t) { %>
+        <span class="article-tag"><%= t %></span>
+        <% }) } %>
+      </div>
+
+      <% if (related && related.length > 0) { %>
+      <div class="related-section fade-in">
+        <h3 class="related-title">相关阅读</h3>
+        <div class="related-grid">
+          <% related.forEach(function(r) { %>
+          <a href="/article/<%= r.id %>" class="related-card">
+            <span class="related-card__section"><%= r.section %></span>
+            <h4 class="related-card__title"><%= r.title %></h4>
+            <span class="related-card__meta"><%= r.published_at ? r.published_at.substring(0,10) : '' %> · <%= r.view_count || 0 %> 次阅读</span>
+          </a>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+
+      <div class="comments-section fade-in" id="comments">
+        <h3 class="comments-title">读者留言 (<%= comments.length %>)</h3>
+
+        <% if (comments.length > 0) { %>
+        <div class="comments-list">
+          <% comments.forEach(function(c) { %>
+          <div class="comment-item">
+            <div class="comment-header">
+              <span class="comment-nick"><%= c.nickname %></span>
+              <span class="comment-time"><%= c.created_at %></span>
+            </div>
+            <div class="comment-body"><%= c.content %></div>
+          </div>
+          <% }) %>
+        </div>
+        <% } else { %>
+        <p class="comments-empty">还没有留言，来写第一条吧。</p>
+        <% } %>
+
+        <form class="comment-form" method="POST" action="/article/<%= article.id %>/comment">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="comment-form__row">
+            <input type="text" name="nickname" placeholder="昵称（可选，默认匿名读者）" class="comment-input" maxlength="100">
+          </div>
+          <div class="comment-form__row">
+            <textarea name="content" placeholder="写下你的想法..." class="comment-textarea" required maxlength="2000" rows="4"></textarea>
+          </div>
+          <button type="submit" class="btn-submit" style="padding:.6rem 2rem;font-size:.82rem">发表留言</button>
+        </form>
+      </div>
     </div>
   </div>
 </main>

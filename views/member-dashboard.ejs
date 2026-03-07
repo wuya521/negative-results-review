@@ -1,0 +1,114 @@
+﻿<%- include('partials/head', { pageTitle: '会员工作台' }) %>
+<%- include('partials/nav') %>
+
+<header class="page-header member-hero">
+  <div class="container">
+    <p class="page-header__label">Member Desk / 会员工作台</p>
+    <h1 class="page-header__title"><%= profile.display_name %> 的工作台</h1>
+    <p class="page-header__sub">轻会员能力围绕阅读沉淀、投稿归属与站内通知展开，不改变平台非正式出版定位。</p>
+    <div class="member-summary-row">
+      <span class="member-pill">等级：<%= profile.member_tier === 'member' ? '普通会员' : profile.member_tier %></span>
+      <span class="member-pill">加入时间：<%= profile.created_at ? String(profile.created_at).substring(0, 10) : '' %></span>
+      <span class="member-pill">最近登录：<%= profile.last_login_at ? String(profile.last_login_at).substring(0, 16).replace('T', ' ') : '首次登录' %></span>
+    </div>
+  </div>
+</header>
+
+<main class="section member-section">
+  <div class="container member-grid">
+    <section class="member-panel member-panel--profile fade-in">
+      <div class="member-panel__head">
+        <h2>账号信息</h2>
+        <a href="/logout" class="member-link">退出登录</a>
+      </div>
+      <div class="member-profile-meta">
+        <div>
+          <span class="member-k">邮箱</span>
+          <strong><%= profile.email %></strong>
+        </div>
+        <div>
+          <span class="member-k">当前权益</span>
+          <strong>收藏 / 通知 / 投稿归属</strong>
+        </div>
+      </div>
+      <p class="member-note">后续如果你要做支持型会员，这里可以无缝扩展付费权益，而不需要重做当前数据结构。</p>
+    </section>
+
+    <section class="member-panel fade-in">
+      <div class="member-panel__head">
+        <h2>我的投稿</h2>
+        <a href="/submit" class="member-link">继续投稿</a>
+      </div>
+      <% if (submissions.length) { %>
+      <div class="member-list">
+        <% submissions.forEach(function(item) { %>
+        <article class="member-item">
+          <div>
+            <div class="member-item__eyebrow"><%= item.submission_no %></div>
+            <h3><%= item.title %></h3>
+            <p><%= item.section %> · <%= statusLabel(item.status) %></p>
+          </div>
+          <div class="member-item__meta"><%= String(item.updated_at).substring(0, 10) %></div>
+        </article>
+        <% }) %>
+      </div>
+      <% } else { %>
+      <p class="member-empty">你还没有与账号绑定的投稿。登录后提交的新稿件会自动出现在这里。</p>
+      <% } %>
+    </section>
+
+    <section class="member-panel fade-in">
+      <div class="member-panel__head">
+        <h2>我的收藏</h2>
+        <a href="/archive" class="member-link">继续阅读</a>
+      </div>
+      <% if (favorites.length) { %>
+      <div class="member-list">
+        <% favorites.forEach(function(item) { %>
+        <a href="/article/<%= item.id %>" class="member-item member-item--link">
+          <div>
+            <div class="member-item__eyebrow">收藏于 <%= String(item.favorited_at).substring(0, 10) %></div>
+            <h3><%= item.title %></h3>
+            <p><%= item.section %></p>
+          </div>
+          <div class="member-item__meta"><%= item.published_at ? String(item.published_at).substring(0, 10) : '' %></div>
+        </a>
+        <% }) %>
+      </div>
+      <% } else { %>
+      <p class="member-empty">还没有收藏。文章页会提供收藏按钮。</p>
+      <% } %>
+    </section>
+
+    <section class="member-panel fade-in">
+      <div class="member-panel__head">
+        <h2>站内通知</h2>
+        <span class="member-link"><%= notifications.filter(function(n){ return !n.is_read; }).length %> 条未读</span>
+      </div>
+      <% if (notifications.length) { %>
+      <div class="member-list member-list--notifications">
+        <% notifications.forEach(function(item) { %>
+        <article class="member-item member-item--notification <%= item.is_read ? 'is-read' : '' %>">
+          <div>
+            <div class="member-item__eyebrow"><%= String(item.created_at).substring(0, 16).replace('T', ' ') %></div>
+            <h3><%= item.title %></h3>
+            <p><%= item.content %></p>
+            <% if (item.link) { %><a class="member-inline-link" href="<%= item.link %>">查看</a><% } %>
+          </div>
+          <% if (!item.is_read) { %>
+          <form method="POST" action="/notifications/<%= item.id %>/read">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+            <button type="submit" class="member-mark-read">标记已读</button>
+          </form>
+          <% } %>
+        </article>
+        <% }) %>
+      </div>
+      <% } else { %>
+      <p class="member-empty">还没有通知。</p>
+      <% } %>
+    </section>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

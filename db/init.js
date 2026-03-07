@@ -1,4 +1,4 @@
-const mysql = require('mysql2/promise');
+﻿const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 
 async function initDB() {
@@ -25,6 +25,20 @@ async function initDB() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      email         VARCHAR(120) UNIQUE NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      display_name  VARCHAR(80) NOT NULL,
+      member_tier   VARCHAR(20) NOT NULL DEFAULT 'member',
+      bio           VARCHAR(500) DEFAULT '',
+      is_active     TINYINT(1) NOT NULL DEFAULT 1,
+      created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_login_at DATETIME
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS manuscripts (
       id                  INT AUTO_INCREMENT PRIMARY KEY,
       submission_no       VARCHAR(32)  UNIQUE NOT NULL,
@@ -33,6 +47,7 @@ async function initDB() {
       section             VARCHAR(100) NOT NULL,
       author_mode         VARCHAR(20)  NOT NULL DEFAULT 'anonymous',
       pen_name            VARCHAR(100),
+      user_id             INT,
       content             TEXT         NOT NULL,
       value_note          TEXT,
       status              VARCHAR(20)  NOT NULL DEFAULT 'pending',
@@ -48,7 +63,34 @@ async function initDB() {
       is_archived         TINYINT(1)   NOT NULL DEFAULT 0,
       created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      published_at        DATETIME
+      published_at        DATETIME,
+      INDEX idx_user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS favorites (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      user_id     INT NOT NULL,
+      article_id  INT NOT NULL,
+      created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uq_user_article (user_id, article_id),
+      INDEX idx_favorites_user (user_id),
+      INDEX idx_favorites_article (article_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      user_id     INT NOT NULL,
+      title       VARCHAR(160) NOT NULL,
+      content     TEXT NOT NULL,
+      link        VARCHAR(255) DEFAULT '',
+      is_read     TINYINT(1) NOT NULL DEFAULT 0,
+      created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_notifications_user (user_id),
+      INDEX idx_notifications_read (user_id, is_read)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
@@ -98,13 +140,17 @@ async function initDB() {
     "ALTER TABLE manuscripts ADD COLUMN tags VARCHAR(500) DEFAULT '' AFTER is_trending",
     "ALTER TABLE manuscripts ADD COLUMN view_count INT NOT NULL DEFAULT 0 AFTER tags",
     "ALTER TABLE admins ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin' AFTER password_hash",
+    "ALTER TABLE manuscripts ADD COLUMN user_id INT AFTER pen_name",
+    "ALTER TABLE users ADD COLUMN member_tier VARCHAR(20) NOT NULL DEFAULT 'member' AFTER display_name",
+    "ALTER TABLE users ADD COLUMN bio VARCHAR(500) DEFAULT '' AFTER member_tier",
+    "ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER bio",
+    "ALTER TABLE users ADD COLUMN last_login_at DATETIME AFTER created_at"
   ];
   for (const sql of migrations) {
     try { await pool.query(sql); } catch (e) {
       if (e.errno !== 1060) console.error('[DB Migration]', e.message);
     }
   }
-
   // --- Seed admin ---
   const [adminRows] = await pool.execute('SELECT id FROM admins LIMIT 1');
   if (adminRows.length === 0) {
@@ -258,3 +304,5 @@ async function initDB() {
 }
 
 module.exports = { initDB };
+
+

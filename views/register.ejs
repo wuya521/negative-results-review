@@ -1,0 +1,46 @@
+﻿<%- include('partials/head', { pageTitle: '会员注册' }) %>
+<%- include('partials/nav') %>
+
+<header class="page-header page-header--compact">
+  <div class="container narrow-container">
+    <p class="page-header__label">Member Signup / 会员注册</p>
+    <h1 class="page-header__title">创建轻会员账号</h1>
+    <p class="page-header__sub">注册后可以收藏、接收站内通知，并将后续投稿自动归档到你的个人工作台。</p>
+  </div>
+</header>
+
+<main class="section">
+  <div class="container narrow-container">
+    <div class="auth-card fade-in">
+      <% if (error) { %>
+      <div class="form-alert form-alert--error"><%= error %></div>
+      <% } %>
+      <form method="POST" action="/register">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <input type="hidden" name="next" value="<%= nextUrl %>">
+        <div class="form-group">
+          <label class="form-label" for="display_name">显示名称</label>
+          <input class="form-input" id="display_name" name="display_name" type="text" maxlength="80" required value="<%= form.display_name || '' %>">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="email">邮箱</label>
+          <input class="form-input" id="email" name="email" type="email" required value="<%= form.email || '' %>">
+        </div>
+        <div class="form-group auth-grid">
+          <div>
+            <label class="form-label" for="password">密码</label>
+            <input class="form-input" id="password" name="password" type="password" minlength="6" required>
+          </div>
+          <div>
+            <label class="form-label" for="confirm_password">确认密码</label>
+            <input class="form-input" id="confirm_password" name="confirm_password" type="password" minlength="6" required>
+          </div>
+        </div>
+        <button class="btn-submit auth-submit" type="submit">注册并进入</button>
+      </form>
+      <p class="auth-switch">已经有账号？<a href="/login<%= nextUrl ? ('?next=' + encodeURIComponent(nextUrl)) : '' %>">直接登录</a></p>
+    </div>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

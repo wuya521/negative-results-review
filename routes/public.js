@@ -1,12 +1,20 @@
-const express = require('express');
-const router = express.Router();
+﻿const express = require('express');
+const bcrypt = require('bcryptjs');
+const { requireMember } = require('../middleware/auth');
 const { SECTIONS, PER_PAGE_PUBLIC, estimateReadingTime } = require('../config/constants');
 
+const router = express.Router();
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-module.exports = function (submitLimiter, csrfCheck) {
+async function createNotification(db, userId, title, content, link) {
+  if (!userId) return;
+  await db.execute(
+    'INSERT INTO notifications (user_id, title, content, link) VALUES (?, ?, ?, ?)',
+    [userId, title, content, link || '']
+  );
+}
 
-  // ---------- Homepage ----------
+module.exports = function (submitLimiter, csrfCheck) {
   router.get('/', wrap(async (req, res) => {
     const db = res.locals.db;
     const [pinned] = await db.execute(
@@ -24,12 +32,119 @@ module.exports = function (submitLimiter, csrfCheck) {
     res.render('index', { articles, featured, pinned, sections: SECTIONS });
   }));
 
-  // ---------- Submit ----------
+  router.get('/register', (req, res) => {
+    res.render('register', { error: null, form: {}, nextUrl: req.query.next || '/me' });
+  });
+
+  router.post('/register', csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    const { email, display_name, password, confirm_password, next } = req.body;
+    const form = { email, display_name };
+
+    if (!email || !display_name || !password) {
+      return res.render('register', { error: '请完整填写注册信息。', form, nextUrl: next || '/me' });
+    }
+    if (password.length < 6) {
+      return res.render('register', { error: '密码至少需要 6 位。', form, nextUrl: next || '/me' });
+    }
+    if (password !== confirm_password) {
+      return res.render('register', { error: '两次输入的密码不一致。', form, nextUrl: next || '/me' });
+    }
+
+    const [exists] = await db.execute('SELECT id FROM users WHERE email = ?', [email.trim().toLowerCase()]);
+    if (exists.length > 0) {
+      return res.render('register', { error: '这个邮箱已经注册过。', form, nextUrl: next || '/me' });
+    }
+
+    const hash = bcrypt.hashSync(password, 10);
+    const [result] = await db.execute(
+      'INSERT INTO users (email, password_hash, display_name, last_login_at) VALUES (?, ?, ?, NOW())',
+      [email.trim().toLowerCase(), hash, display_name.trim().substring(0, 80)]
+    );
+
+    req.session.user = {
+      id: result.insertId,
+      email: email.trim().toLowerCase(),
+      display_name: display_name.trim().substring(0, 80),
+      member_tier: 'member'
+    };
+
+    await createNotification(db, result.insertId, '欢迎加入负结果通讯', '你的会员工作台已经启用，现在可以收藏文章、保存投稿归属并接收站内通知。', '/me');
+    res.redirect(next || '/me');
+  }));
+
+  router.get('/login', (req, res) => {
+    res.render('login', { error: null, form: {}, nextUrl: req.query.next || '/me' });
+  });
+
+  router.post('/login', csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    const { email, password, next } = req.body;
+    const form = { email };
+    if (!email || !password) {
+      return res.render('login', { error: '请输入邮箱和密码。', form, nextUrl: next || '/me' });
+    }
+
+    const [rows] = await db.execute('SELECT * FROM users WHERE email = ? AND is_active = 1', [email.trim().toLowerCase()]);
+    if (rows.length === 0 || !bcrypt.compareSync(password, rows[0].password_hash)) {
+      return res.render('login', { error: '邮箱或密码错误。', form, nextUrl: next || '/me' });
+    }
+
+    await db.execute('UPDATE users SET last_login_at = NOW() WHERE id = ?', [rows[0].id]);
+    req.session.user = {
+      id: rows[0].id,
+      email: rows[0].email,
+      display_name: rows[0].display_name,
+      member_tier: rows[0].member_tier || 'member'
+    };
+
+    res.redirect(next || '/me');
+  }));
+
+  router.get('/logout', (req, res) => {
+    delete req.session.user;
+    res.redirect('/');
+  });
+
+  router.get('/me', requireMember, wrap(async (req, res) => {
+    const db = res.locals.db;
+    const userId = req.session.user.id;
+    const [[profile]] = await db.execute(
+      'SELECT id, email, display_name, member_tier, bio, created_at, last_login_at FROM users WHERE id = ?',
+      [userId]
+    );
+    const [submissions] = await db.execute(
+      `SELECT id, submission_no, title, section, status, created_at, updated_at, published_at
+       FROM manuscripts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20`,
+      [userId]
+    );
+    const [favorites] = await db.execute(
+      `SELECT m.id, m.title, m.section, m.published_at, f.created_at AS favorited_at
+       FROM favorites f
+       JOIN manuscripts m ON m.id = f.article_id
+       WHERE f.user_id = ? AND m.status IN ('published', 'archived')
+       ORDER BY f.created_at DESC LIMIT 12`,
+      [userId]
+    );
+    const [notifications] = await db.execute(
+      'SELECT id, title, content, link, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20',
+      [userId]
+    );
+    res.render('member-dashboard', { profile, submissions, favorites, notifications });
+  }));
+
+  router.post('/notifications/:id/read', requireMember, csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    await db.execute('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?', [req.params.id, req.session.user.id]);
+    res.redirect('/me');
+  }));
+
   router.get('/submit', (req, res) => {
     res.render('submit', {
       success: req.query.success === '1',
       submissionNo: req.query.no || null,
-      sections: SECTIONS
+      sections: SECTIONS,
+      memberHint: req.session.user ? '该稿件会自动归入你的会员工作台。' : null,
     });
   });
 
@@ -38,7 +153,12 @@ module.exports = function (submitLimiter, csrfCheck) {
     const { title, discipline, section, author_mode, pen_name, content, value_note, agree } = req.body;
 
     if (!title || !discipline || !section || !content || !agree) {
-      return res.render('submit', { error: '请填写所有必填项并勾选声明。', sections: SECTIONS, form: req.body });
+      return res.render('submit', {
+        error: '请完整填写必填项后再提交。',
+        sections: SECTIONS,
+        form: req.body,
+        memberHint: req.session.user ? '该稿件会自动归入你的会员工作台。' : null,
+      });
     }
 
     const year = new Date().getFullYear();
@@ -53,16 +173,30 @@ module.exports = function (submitLimiter, csrfCheck) {
     }
     const submission_no = `NRR-${year}-${String(seq).padStart(3, '0')}`;
 
+    const userId = req.session.user ? req.session.user.id : null;
     await db.execute(
-      `INSERT INTO manuscripts (submission_no, title, discipline, section, author_mode, pen_name, content, value_note)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [submission_no, title.trim(), discipline.trim(), section, author_mode || 'anonymous', pen_name || null, content.trim(), value_note || null]
+      `INSERT INTO manuscripts (submission_no, title, discipline, section, author_mode, pen_name, user_id, content, value_note)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        submission_no,
+        title.trim(),
+        discipline.trim(),
+        section,
+        author_mode || 'anonymous',
+        pen_name || null,
+        userId,
+        content.trim(),
+        value_note || null
+      ]
     );
+
+    if (userId) {
+      await createNotification(db, userId, '投稿已提交', `稿件 ${submission_no} 已进入编辑队列。你可以在会员工作台持续跟踪状态。`, '/me');
+    }
 
     res.redirect(`/submit?success=1&no=${encodeURIComponent(submission_no)}`);
   }));
 
-  // ---------- Track ----------
   router.get('/track', (req, res) => {
     res.render('track', { result: null, query: req.query.no || '' });
   });
@@ -70,9 +204,8 @@ module.exports = function (submitLimiter, csrfCheck) {
   router.post('/track', csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
     let no = (req.body.submission_no || '').trim();
-    if (!no) return res.render('track', { result: null, query: '', error: '请输入稿件编号' });
+    if (!no) return res.render('track', { result: null, query: '', error: '请输入稿件编号。' });
 
-    // Fuzzy match: if user enters just a number like "001", expand it
     if (/^\d{1,4}$/.test(no)) {
       const year = new Date().getFullYear();
       no = `NRR-${year}-${no.padStart(3, '0')}`;
@@ -85,55 +218,54 @@ module.exports = function (submitLimiter, csrfCheck) {
     );
 
     if (rows.length === 0) {
-      return res.render('track', { result: null, query: no, error: '未找到该编号的稿件，请检查输入。支持输入完整编号（NRR-2026-001）或简短编号（001）。' });
+      return res.render('track', { result: null, query: no, error: '没有找到对应稿件，请检查编号是否正确，例如 NRR-2026-001 或 001。' });
     }
 
     const ms = rows[0];
     const statusMap = {
-      pending: '编辑部已收到，等待审阅',
-      under_review: '审核中，编辑部正在审阅',
-      revision: '退修 — 请根据编辑部意见修改后重新提交',
-      accepted: '已录用，等待排期发布',
-      rejected: '未通过审核',
+      pending: '待审',
+      under_review: '审核中',
+      revision: '退修',
+      accepted: '已录用',
+      rejected: '已拒稿',
       published: '已发布',
       archived: '已归档'
     };
 
     res.render('track', {
       result: {
-        no: ms.submission_no, title: ms.title, section: ms.section,
-        status: ms.status, statusText: statusMap[ms.status] || ms.status,
+        no: ms.submission_no,
+        title: ms.title,
+        section: ms.section,
+        status: ms.status,
+        statusText: statusMap[ms.status] || ms.status,
         editorNote: ms.status === 'revision' ? ms.editor_note : null,
-        createdAt: ms.created_at, updatedAt: ms.updated_at, publishedAt: ms.published_at,
+        createdAt: ms.created_at,
+        updatedAt: ms.updated_at,
+        publishedAt: ms.published_at,
       },
       query: no,
     });
   }));
 
-  // ---------- About ----------
   router.get('/about', (req, res) => res.render('about'));
 
-  // ---------- Article Detail ----------
   router.get('/article/:id', wrap(async (req, res) => {
     const db = res.locals.db;
     const [rows] = await db.execute(
       `SELECT * FROM manuscripts WHERE id = ? AND status IN ('published','archived')`, [req.params.id]
     );
     if (rows.length === 0) {
-      return res.status(404).render('error', { code: 404, title: '文章不存在', message: '文章不存在或尚未发布。' });
+      return res.status(404).render('error', { code: 404, title: '文章不存在', message: '你访问的文章不存在或尚未公开。' });
     }
 
     const article = rows[0];
-
-    // Increment view count (fire and forget)
     db.execute('UPDATE manuscripts SET view_count = view_count + 1 WHERE id = ?', [req.params.id]).catch(() => {});
 
-    // Load comments
     const [comments] = await db.execute(
       'SELECT id, nickname, content, created_at FROM comments WHERE article_id = ? ORDER BY created_at ASC', [req.params.id]
     );
 
-    // Related articles: same section or shared tags
     const tags = (article.tags || '').split(',').map(t => t.trim()).filter(Boolean);
     let related = [];
     if (tags.length > 0) {
@@ -159,19 +291,26 @@ module.exports = function (submitLimiter, csrfCheck) {
       related = [...related, ...moreRows].slice(0, 4);
     }
 
-    const readingTime = estimateReadingTime(article.content);
+    let isFavorited = false;
+    if (req.session.user) {
+      const [[fav]] = await db.execute(
+        'SELECT COUNT(*) AS c FROM favorites WHERE user_id = ? AND article_id = ?',
+        [req.session.user.id, article.id]
+      );
+      isFavorited = Number(fav.c || 0) > 0;
+    }
 
-    res.render('article', { article, comments, related, readingTime });
+    const readingTime = estimateReadingTime(article.content);
+    res.render('article', { article, comments, related, readingTime, isFavorited });
   }));
 
-  // ---------- Post Comment ----------
   router.post('/article/:id/comment', csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
     const { nickname, content } = req.body;
     if (!content || content.trim().length < 2) {
       return res.redirect(`/article/${req.params.id}#comments`);
     }
-    const safeName = (nickname || '').trim() || '匿名读者';
+    const safeName = (nickname || '').trim() || (req.session.user ? req.session.user.display_name : '匿名读者');
     await db.execute(
       'INSERT INTO comments (article_id, nickname, content) VALUES (?, ?, ?)',
       [req.params.id, safeName.substring(0, 100), content.trim().substring(0, 2000)]
@@ -179,11 +318,26 @@ module.exports = function (submitLimiter, csrfCheck) {
     res.redirect(`/article/${req.params.id}#comments`);
   }));
 
-  // ---------- Archive ----------
+  router.post('/article/:id/favorite', requireMember, csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    const userId = req.session.user.id;
+    const articleId = Number(req.params.id);
+    const [[exists]] = await db.execute(
+      'SELECT id FROM favorites WHERE user_id = ? AND article_id = ?',
+      [userId, articleId]
+    );
+    if (exists && exists.id) {
+      await db.execute('DELETE FROM favorites WHERE id = ?', [exists.id]);
+    } else {
+      await db.execute('INSERT INTO favorites (user_id, article_id) VALUES (?, ?)', [userId, articleId]);
+    }
+    res.redirect(`/article/${articleId}`);
+  }));
+
   router.get('/archive', wrap(async (req, res) => {
     const db = res.locals.db;
     const { section, year, featured, q } = req.query;
-    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
 
     let countSql = `SELECT COUNT(*) as c FROM manuscripts WHERE status IN ('published','archived')`;
     let sql = `SELECT id, submission_no, title, section, author_mode, pen_name,
@@ -212,14 +366,15 @@ module.exports = function (submitLimiter, csrfCheck) {
     );
 
     res.render('archive', {
-      articles, sections: SECTIONS,
+      articles,
+      sections: SECTIONS,
       years: yearRows.map(r => String(r.y)),
       filters: { section, year, featured, q },
-      page, totalPages,
+      page,
+      totalPages,
     });
   }));
 
-  // ---------- RSS Feed ----------
   router.get('/rss', wrap(async (req, res) => {
     const db = res.locals.db;
     const [articles] = await db.execute(
@@ -230,9 +385,9 @@ module.exports = function (submitLimiter, csrfCheck) {
     const host = req.protocol + '://' + req.get('host');
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n<channel>\n';
-    xml += '  <title>负结果通讯 — Negative Results Review</title>\n';
+    xml += '  <title>负结果通讯 Negative Results Review</title>\n';
     xml += '  <link>' + host + '</link>\n';
-    xml += '  <description>非正式学术交流与电子选刊平台</description>\n';
+    xml += '  <description>记录科研中不被看见的那部分</description>\n';
     xml += '  <language>zh-CN</language>\n';
     xml += '  <atom:link href="' + host + '/rss" rel="self" type="application/rss+xml"/>\n';
 

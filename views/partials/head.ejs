@@ -1,23 +1,18 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title><%= typeof pageTitle !== 'undefined' && pageTitle ? pageTitle + ' — ' : '' %>负结果通讯</title>
-  <meta name="description" content="<%= typeof pageDesc !== 'undefined' && pageDesc ? pageDesc : '非正式学术交流与电子选刊平台 — 记录科研中不被看见的部分' %>">
-
-  <!-- Open Graph -->
+  <title><%= typeof pageTitle !== 'undefined' && pageTitle ? pageTitle + ' - ' : '' %>负结果通讯</title>
+  <meta name="description" content="<%= typeof pageDesc !== 'undefined' && pageDesc ? pageDesc : '非正式学术交流与电子选刊平台，记录科研中不被看见的那部分。' %>">
   <meta property="og:type" content="<%= typeof ogType !== 'undefined' ? ogType : 'website' %>">
-  <meta property="og:title" content="<%= typeof pageTitle !== 'undefined' && pageTitle ? pageTitle + ' — ' : '' %>负结果通讯">
+  <meta property="og:title" content="<%= typeof pageTitle !== 'undefined' && pageTitle ? pageTitle + ' - ' : '' %>负结果通讯">
   <meta property="og:description" content="<%= typeof pageDesc !== 'undefined' && pageDesc ? pageDesc : '非正式学术交流与电子选刊平台' %>">
   <meta property="og:site_name" content="负结果通讯">
   <meta property="og:locale" content="zh_CN">
-
-  <!-- Twitter Card -->
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="<%= typeof pageTitle !== 'undefined' && pageTitle ? pageTitle : '负结果通讯' %>">
   <meta name="twitter:description" content="<%= typeof pageDesc !== 'undefined' && pageDesc ? pageDesc : '非正式学术交流与电子选刊平台' %>">
-
   <link rel="alternate" type="application/rss+xml" title="负结果通讯 RSS" href="/rss">
   <link rel="stylesheet" href="/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">

@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const bcrypt = require('bcryptjs');
 const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
@@ -22,6 +22,14 @@ async function logAction(db, admin, action, targetType, targetId, details) {
   } catch (e) { console.error('Log failed:', e.message); }
 }
 
+async function notifyManuscriptOwner(db, manuscriptId, title, content, link) {
+  const [[row]] = await db.execute('SELECT user_id FROM manuscripts WHERE id = ?', [manuscriptId]);
+  if (!row || !row.user_id) return;
+  await db.execute(
+    'INSERT INTO notifications (user_id, title, content, link) VALUES (?, ?, ?, ?)',
+    [row.user_id, title, content, link || '/me']
+  );
+}
 module.exports = function (csrfCheck) {
 
   // ---------- Login ----------
@@ -86,7 +94,7 @@ module.exports = function (csrfCheck) {
     const page = Math.max(1, parseInt(req.query.page) || 1);
 
     let countSql = 'SELECT COUNT(*) as c FROM manuscripts WHERE 1=1';
-    let sql = 'SELECT id, submission_no, title, discipline, section, author_mode, status, risk_level, desensitized_status, is_featured, is_pinned, is_editor_pick, is_trending, created_at FROM manuscripts WHERE 1=1';
+    let sql = 'SELECT id, submission_no, title, discipline, section, author_mode, user_id, status, risk_level, desensitized_status, is_featured, is_pinned, is_editor_pick, is_trending, created_at FROM manuscripts WHERE 1=1';
     const params = [];
 
     if (status)  { const f = ' AND status = ?';     sql += f; countSql += f; params.push(status); }
@@ -189,6 +197,11 @@ module.exports = function (csrfCheck) {
   router.get('/manuscripts/:id', requireAuth, wrap(async (req, res) => {
     const db = res.locals.db;
     const [rows] = await db.execute('SELECT * FROM manuscripts WHERE id = ?', [req.params.id]);
+    let owner = null;
+    if (rows.length > 0 && rows[0].user_id) {
+      const [ownerRows] = await db.execute('SELECT id, email, display_name, member_tier, created_at, last_login_at FROM users WHERE id = ?', [rows[0].user_id]);
+      owner = ownerRows[0] || null;
+    }
     if (rows.length === 0) return res.redirect('/admin/manuscripts');
 
     const [logs] = await db.execute(
@@ -199,7 +212,7 @@ module.exports = function (csrfCheck) {
     const stats = await getStats(db);
     res.render('admin/detail', {
       ms: rows[0], stats, sections: SECTIONS, statuses: STATUSES,
-      logs, msg: req.query.msg || null, admin: req.session.admin
+      logs, owner, msg: req.query.msg || null, admin: req.session.admin
     });
   }));
 
@@ -249,6 +262,16 @@ module.exports = function (csrfCheck) {
     }
 
     await logAction(db, req.session.admin, `status_to_${status}`, 'manuscript', req.params.id, null);
+    const statusTitleMap = {
+      pending: '稿件已回到待审队列',
+      under_review: '稿件进入审核中',
+      revision: '稿件需要修改',
+      accepted: '稿件已被录用',
+      rejected: '稿件未通过审核',
+      published: '稿件已发布',
+      archived: '稿件已归档'
+    };
+    await notifyManuscriptOwner(db, req.params.id, statusTitleMap[status] || '稿件状态更新', `你的稿件状态已更新为 ${status}。请前往会员工作台查看详情。`, '/me');
     res.redirect(`/admin/manuscripts/${req.params.id}?msg=status_${status}`);
   }));
 
@@ -312,3 +335,10 @@ module.exports = function (csrfCheck) {
 
   return router;
 };
+
+
+
+
+
+
+
