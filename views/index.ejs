@@ -46,7 +46,7 @@
         <p>会员系统只做三件事：收藏、通知、投稿归属。它服务阅读和投稿秩序，不打断你作为匿名叙述者的自由。</p>
         <% if (!currentUser) { %>
         <a href="/register" class="home-side-note__link">创建账号</a>
-        <% else { %>
+        <% } else { %>
         <a href="/me" class="home-side-note__link">查看工作台</a>
         <% } %>
       </div>
