@@ -439,7 +439,7 @@ module.exports = function (csrfCheck) {
     const db = res.locals.db;
     const status = req.query.status || '';
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    let countSql = 'SELECT COUNT(*) AS c FROM member_applications WHERE 1 = 1';
+    let countSql = 'SELECT COUNT(*) AS c FROM member_applications a WHERE 1 = 1';
     let sql = `SELECT a.id, a.user_id, a.requested_tier, a.reason, a.status, a.admin_note, a.reviewed_at, a.created_at,
                       u.display_name, u.email, u.member_tier,
                       reviewer.username AS reviewer_name
