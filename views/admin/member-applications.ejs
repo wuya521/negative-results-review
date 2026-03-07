@@ -1,0 +1,100 @@
+﻿<%- include('partials/head', { pageTitle: '会员申请审核' }) %>
+<body>
+<div class="layout">
+<%- include('partials/sidebar', { active: 'applications', stats: stats, admin: admin }) %>
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
+      <span class="topbar-issue">REVIEW</span>
+      <span class="topbar-status"><span class="dot"></span>会员申请审核</span>
+    </div>
+  </header>
+
+  <div class="content">
+    <% if (msg) { %>
+    <div class="toast show" style="position:relative;bottom:auto;right:auto;margin-bottom:1rem;pointer-events:auto;opacity:1;transform:none">
+      <%= ({ reviewed: '申请审核已完成。', already_reviewed: '该申请已经处理过。', not_found: '未找到对应申请。' })[msg] || msg %>
+    </div>
+    <% } %>
+
+    <div class="sec-header">
+      <h2>会员申请队列</h2>
+      <span class="tag">Member Applications</span>
+    </div>
+
+    <form method="GET" action="/admin/member-applications" class="filter-bar">
+      <span class="filter-label">状态</span>
+      <select name="status" class="filter-select">
+        <option value="" <%= !filters.status ? 'selected' : '' %>>全部</option>
+        <option value="pending" <%= filters.status === 'pending' ? 'selected' : '' %>>待审核</option>
+        <option value="approved" <%= filters.status === 'approved' ? 'selected' : '' %>>已通过</option>
+        <option value="rejected" <%= filters.status === 'rejected' ? 'selected' : '' %>>未通过</option>
+      </select>
+      <button type="submit" class="filter-submit">筛选</button>
+      <a href="/admin/member-applications" class="filter-reset">重置</a>
+    </form>
+
+    <% if (!applications.length) { %>
+    <div class="empty-state"><div class="icon">✦</div>当前没有会员申请记录。</div>
+    <% } else { %>
+    <div class="member-admin-stack">
+      <% applications.forEach(function(item) { %>
+      <article class="detail-card member-application-review-card">
+        <div class="member-application-review-head">
+          <div>
+            <div class="member-item__eyebrow">提交于 <%= String(item.created_at).substring(0, 16).replace('T', ' ') %></div>
+            <h3 class="member-admin-section-title"><%= item.display_name %> · <span class="member-admin-email"><%= item.email %></span></h3>
+          </div>
+          <div class="member-item__meta-block">
+            <span class="member-badge member-badge--<%= item.status %>"><%= ({ pending: '待审核', approved: '已通过', rejected: '未通过' })[item.status] || item.status %></span>
+            <span class="member-item__meta">当前等级：<%= ({ member: '普通会员', supporter: '支持会员', contributor: '投稿协作会员', editorial: '编辑协作身份' })[item.member_tier] || item.member_tier %></span>
+          </div>
+        </div>
+        <div class="member-admin-review-meta">
+          <div><span class="member-k">申请等级</span><strong><%= ({ supporter: '支持会员', contributor: '投稿协作会员' })[item.requested_tier] || item.requested_tier %></strong></div>
+          <div><span class="member-k">审核人</span><strong><%= item.reviewer_name || '待处理' %></strong></div>
+          <div><span class="member-k">审核时间</span><strong><%= item.reviewed_at || '待处理' %></strong></div>
+        </div>
+        <div class="member-admin-review-body">
+          <p><%= item.reason %></p>
+          <% if (item.admin_note) { %>
+          <p class="member-application-admin-note">审核备注：<%= item.admin_note %></p>
+          <% } %>
+        </div>
+        <% if (item.status === 'pending' && admin.role === 'admin') { %>
+        <form method="POST" action="/admin/member-applications/<%= item.id %>/review" class="member-admin-review-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <label class="member-form-field">
+            <span>审核备注</span>
+            <textarea name="admin_note" rows="4" maxlength="2000" placeholder="给申请人留下可见备注。"></textarea>
+          </label>
+          <div class="status-actions">
+            <button type="submit" name="action" value="approve" class="act-btn green">通过申请并授予等级</button>
+            <button type="submit" name="action" value="reject" class="act-btn danger">拒绝申请</button>
+          </div>
+        </form>
+        <% } %>
+      </article>
+      <% }) %>
+    </div>
+    <% } %>
+
+    <% if (totalPages > 1) { %>
+    <div class="pagination">
+      <% var base = '/admin/member-applications?' + (filters.status ? ('status=' + filters.status + '&') : ''); %>
+      <% if (page > 1) { %><a href="<%= base %>page=<%= page - 1 %>" class="page-link">上一页</a><% } %>
+      <span class="page-info"><%= page %> / <%= totalPages %></span>
+      <% if (page < totalPages) { %><a href="<%= base %>page=<%= page + 1 %>" class="page-link">下一页</a><% } %>
+    </div>
+    <% } %>
+  </div>
+</div>
+</div>
+
+<script>
+var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
+if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}
+if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
+</script>
+</body></html>

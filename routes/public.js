@@ -14,6 +14,71 @@ async function createNotification(db, userId, title, content, link) {
   );
 }
 
+function getDashboardFeedback(query) {
+  const messages = {
+    profile_saved: '账户资料已更新。',
+    password_saved: '密码已更新，请妥善保管。',
+    application_sent: '会员申请已提交，等待后台审核。',
+    notification_read: '通知已标记为已读。',
+  };
+  const errors = {
+    profile_invalid: '昵称不能为空，且长度不能超过 80 个字符。',
+    password_invalid: '请完整填写密码修改表单。',
+    password_mismatch: '两次输入的新密码不一致。',
+    password_short: '新密码至少需要 6 位。',
+    password_wrong: '旧密码不正确。',
+    application_pending: '你已有待处理的会员申请，请等待审核结果。',
+    application_invalid: '请填写有效的申请说明。',
+    application_same_tier: '你已经是这个会员等级，无需重复申请。',
+  };
+  return {
+    message: messages[query.msg] || null,
+    error: errors[query.error] || null,
+  };
+}
+
+async function loadMemberDashboardData(db, userId) {
+  const [[profile]] = await db.execute(
+    'SELECT id, email, display_name, member_tier, bio, created_at, last_login_at, is_active FROM users WHERE id = ?',
+    [userId]
+  );
+  const [submissions] = await db.execute(
+    `SELECT id, submission_no, title, section, status, created_at, updated_at, published_at
+     FROM manuscripts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20`,
+    [userId]
+  );
+  const [favorites] = await db.execute(
+    `SELECT m.id, m.title, m.section, m.published_at, f.created_at AS favorited_at
+     FROM favorites f
+     JOIN manuscripts m ON m.id = f.article_id
+     WHERE f.user_id = ? AND m.status IN ('published', 'archived')
+     ORDER BY f.created_at DESC LIMIT 12`,
+    [userId]
+  );
+  const [notifications] = await db.execute(
+    'SELECT id, title, content, link, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20',
+    [userId]
+  );
+  const [applications] = await db.execute(
+    `SELECT a.id, a.requested_tier, a.reason, a.status, a.admin_note, a.reviewed_at, a.created_at,
+            reviewer.username AS reviewer_name
+     FROM member_applications a
+     LEFT JOIN admins reviewer ON reviewer.id = a.reviewed_by
+     WHERE a.user_id = ?
+     ORDER BY a.created_at DESC LIMIT 10`,
+    [userId]
+  );
+
+  return {
+    profile,
+    submissions,
+    favorites,
+    notifications,
+    applications,
+    canApply: !applications.some(item => item.status === 'pending'),
+  };
+}
+
 module.exports = function (submitLimiter, csrfCheck) {
   router.get('/', wrap(async (req, res) => {
     const db = res.locals.db;
@@ -51,25 +116,33 @@ module.exports = function (submitLimiter, csrfCheck) {
       return res.render('register', { error: '两次输入的密码不一致。', form, nextUrl: next || '/me' });
     }
 
-    const [exists] = await db.execute('SELECT id FROM users WHERE email = ?', [email.trim().toLowerCase()]);
+    const normalizedEmail = email.trim().toLowerCase();
+    const [exists] = await db.execute('SELECT id FROM users WHERE email = ?', [normalizedEmail]);
     if (exists.length > 0) {
       return res.render('register', { error: '这个邮箱已经注册过。', form, nextUrl: next || '/me' });
     }
 
     const hash = bcrypt.hashSync(password, 10);
+    const displayName = display_name.trim().substring(0, 80);
     const [result] = await db.execute(
       'INSERT INTO users (email, password_hash, display_name, last_login_at) VALUES (?, ?, ?, NOW())',
-      [email.trim().toLowerCase(), hash, display_name.trim().substring(0, 80)]
+      [normalizedEmail, hash, displayName]
     );
 
     req.session.user = {
       id: result.insertId,
-      email: email.trim().toLowerCase(),
-      display_name: display_name.trim().substring(0, 80),
+      email: normalizedEmail,
+      display_name: displayName,
       member_tier: 'member'
     };
 
-    await createNotification(db, result.insertId, '欢迎加入负结果通讯', '你的会员工作台已经启用，现在可以收藏文章、保存投稿归属并接收站内通知。', '/me');
+    await createNotification(
+      db,
+      result.insertId,
+      '欢迎加入负结果通讯',
+      '你的会员工作台已经启用，现在可以收藏文章、保存投稿归属并接收站内通知。',
+      '/me'
+    );
     res.redirect(next || '/me');
   }));
 
@@ -85,7 +158,8 @@ module.exports = function (submitLimiter, csrfCheck) {
       return res.render('login', { error: '请输入邮箱和密码。', form, nextUrl: next || '/me' });
     }
 
-    const [rows] = await db.execute('SELECT * FROM users WHERE email = ? AND is_active = 1', [email.trim().toLowerCase()]);
+    const normalizedEmail = email.trim().toLowerCase();
+    const [rows] = await db.execute('SELECT * FROM users WHERE email = ? AND is_active = 1', [normalizedEmail]);
     if (rows.length === 0 || !bcrypt.compareSync(password, rows[0].password_hash)) {
       return res.render('login', { error: '邮箱或密码错误。', form, nextUrl: next || '/me' });
     }
@@ -108,35 +182,82 @@ module.exports = function (submitLimiter, csrfCheck) {
 
   router.get('/me', requireMember, wrap(async (req, res) => {
     const db = res.locals.db;
-    const userId = req.session.user.id;
-    const [[profile]] = await db.execute(
-      'SELECT id, email, display_name, member_tier, bio, created_at, last_login_at FROM users WHERE id = ?',
-      [userId]
+    const feedback = getDashboardFeedback(req.query);
+    const data = await loadMemberDashboardData(db, req.session.user.id);
+    if (data.profile) {
+      req.session.user.display_name = data.profile.display_name;
+      req.session.user.member_tier = data.profile.member_tier;
+    }
+    res.render('member-dashboard', { ...data, feedback });
+  }));
+
+  router.post('/me/profile', requireMember, csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    const displayName = (req.body.display_name || '').trim();
+    const bio = (req.body.bio || '').trim().substring(0, 500);
+    if (!displayName || displayName.length > 80) {
+      return res.redirect('/me?error=profile_invalid');
+    }
+    await db.execute('UPDATE users SET display_name = ?, bio = ? WHERE id = ?', [displayName, bio, req.session.user.id]);
+    req.session.user.display_name = displayName;
+    res.redirect('/me?msg=profile_saved');
+  }));
+
+  router.post('/me/password', requireMember, csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    const { old_password, new_password, confirm_password } = req.body;
+    if (!old_password || !new_password || !confirm_password) {
+      return res.redirect('/me?error=password_invalid');
+    }
+    if (new_password.length < 6) {
+      return res.redirect('/me?error=password_short');
+    }
+    if (new_password !== confirm_password) {
+      return res.redirect('/me?error=password_mismatch');
+    }
+    const [rows] = await db.execute('SELECT password_hash FROM users WHERE id = ?', [req.session.user.id]);
+    if (rows.length === 0 || !bcrypt.compareSync(old_password, rows[0].password_hash)) {
+      return res.redirect('/me?error=password_wrong');
+    }
+    const hash = bcrypt.hashSync(new_password, 10);
+    await db.execute('UPDATE users SET password_hash = ? WHERE id = ?', [hash, req.session.user.id]);
+    await createNotification(db, req.session.user.id, '账户密码已更新', '你的会员账户密码刚刚被修改。若这不是你本人操作，请立即联系站点管理员。', '/me');
+    res.redirect('/me?msg=password_saved');
+  }));
+
+  router.post('/me/applications', requireMember, csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    const requestedTier = ['supporter', 'contributor'].includes(req.body.requested_tier) ? req.body.requested_tier : 'supporter';
+    const reason = (req.body.reason || '').trim();
+    if (reason.length < 12) {
+      return res.redirect('/me?error=application_invalid');
+    }
+
+    const [[profile]] = await db.execute('SELECT member_tier FROM users WHERE id = ?', [req.session.user.id]);
+    if (profile && profile.member_tier === requestedTier) {
+      return res.redirect('/me?error=application_same_tier');
+    }
+
+    const [[pending]] = await db.execute(
+      'SELECT COUNT(*) AS c FROM member_applications WHERE user_id = ? AND status = ?',
+      [req.session.user.id, 'pending']
     );
-    const [submissions] = await db.execute(
-      `SELECT id, submission_no, title, section, status, created_at, updated_at, published_at
-       FROM manuscripts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20`,
-      [userId]
+    if (Number(pending.c || 0) > 0) {
+      return res.redirect('/me?error=application_pending');
+    }
+
+    await db.execute(
+      'INSERT INTO member_applications (user_id, requested_tier, reason) VALUES (?, ?, ?)',
+      [req.session.user.id, requestedTier, reason.substring(0, 4000)]
     );
-    const [favorites] = await db.execute(
-      `SELECT m.id, m.title, m.section, m.published_at, f.created_at AS favorited_at
-       FROM favorites f
-       JOIN manuscripts m ON m.id = f.article_id
-       WHERE f.user_id = ? AND m.status IN ('published', 'archived')
-       ORDER BY f.created_at DESC LIMIT 12`,
-      [userId]
-    );
-    const [notifications] = await db.execute(
-      'SELECT id, title, content, link, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 20',
-      [userId]
-    );
-    res.render('member-dashboard', { profile, submissions, favorites, notifications });
+    await createNotification(db, req.session.user.id, '会员申请已提交', '你的会员申请已进入后台审核队列，审核结果会通过站内通知告知。', '/me');
+    res.redirect('/me?msg=application_sent');
   }));
 
   router.post('/notifications/:id/read', requireMember, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
     await db.execute('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?', [req.params.id, req.session.user.id]);
-    res.redirect('/me');
+    res.redirect('/me?msg=notification_read');
   }));
 
   router.get('/submit', (req, res) => {
@@ -164,21 +285,23 @@ module.exports = function (submitLimiter, csrfCheck) {
     const year = new Date().getFullYear();
     const [rows] = await db.execute(
       'SELECT submission_no FROM manuscripts WHERE submission_no LIKE ? ORDER BY submission_no DESC LIMIT 1',
-      [`NRR-${year}-%`]
+      [
+        `NRR-${year}-%`
+      ]
     );
     let seq = 1;
     if (rows.length > 0) {
       const last = parseInt(rows[0].submission_no.split('-').pop(), 10);
       if (!isNaN(last)) seq = last + 1;
     }
-    const submission_no = `NRR-${year}-${String(seq).padStart(3, '0')}`;
+    const submissionNo = `NRR-${year}-${String(seq).padStart(3, '0')}`;
 
     const userId = req.session.user ? req.session.user.id : null;
     await db.execute(
       `INSERT INTO manuscripts (submission_no, title, discipline, section, author_mode, pen_name, user_id, content, value_note)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        submission_no,
+        submissionNo,
         title.trim(),
         discipline.trim(),
         section,
@@ -191,10 +314,10 @@ module.exports = function (submitLimiter, csrfCheck) {
     );
 
     if (userId) {
-      await createNotification(db, userId, '投稿已提交', `稿件 ${submission_no} 已进入编辑队列。你可以在会员工作台持续跟踪状态。`, '/me');
+      await createNotification(db, userId, '投稿已提交', `稿件 ${submissionNo} 已进入编辑队列。你可以在会员工作台持续跟踪状态。`, '/me');
     }
 
-    res.redirect(`/submit?success=1&no=${encodeURIComponent(submission_no)}`);
+    res.redirect(`/submit?success=1&no=${encodeURIComponent(submissionNo)}`);
   }));
 
   router.get('/track', (req, res) => {
@@ -214,7 +337,8 @@ module.exports = function (submitLimiter, csrfCheck) {
     const [rows] = await db.execute(
       `SELECT submission_no, title, section, status, risk_level, desensitized_status,
               editor_note, created_at, updated_at, published_at
-       FROM manuscripts WHERE submission_no = ?`, [no]
+       FROM manuscripts WHERE submission_no = ?`,
+      [no]
     );
 
     if (rows.length === 0) {
@@ -253,7 +377,8 @@ module.exports = function (submitLimiter, csrfCheck) {
   router.get('/article/:id', wrap(async (req, res) => {
     const db = res.locals.db;
     const [rows] = await db.execute(
-      `SELECT * FROM manuscripts WHERE id = ? AND status IN ('published','archived')`, [req.params.id]
+      `SELECT * FROM manuscripts WHERE id = ? AND status IN ('published','archived')`,
+      [req.params.id]
     );
     if (rows.length === 0) {
       return res.status(404).render('error', { code: 404, title: '文章不存在', message: '你访问的文章不存在或尚未公开。' });
@@ -263,7 +388,8 @@ module.exports = function (submitLimiter, csrfCheck) {
     db.execute('UPDATE manuscripts SET view_count = view_count + 1 WHERE id = ?', [req.params.id]).catch(() => {});
 
     const [comments] = await db.execute(
-      'SELECT id, nickname, content, created_at FROM comments WHERE article_id = ? ORDER BY created_at ASC', [req.params.id]
+      'SELECT id, nickname, content, created_at FROM comments WHERE article_id = ? ORDER BY created_at ASC',
+      [req.params.id]
     );
 
     const tags = (article.tags || '').split(',').map(t => t.trim()).filter(Boolean);

@@ -1,0 +1,91 @@
+﻿<%- include('partials/head', { pageTitle: '会员管理' }) %>
+<body>
+<div class="layout">
+<%- include('partials/sidebar', { active: 'users', stats: stats, admin: admin }) %>
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
+      <span class="topbar-issue">ISSUE 001</span>
+      <span class="topbar-status"><span class="dot"></span>会员治理中</span>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-stat"><div class="num"><%= memberStats.totalUsers %></div><div class="label">总会员</div></div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-stat"><div class="num"><%= memberStats.activeUsers %></div><div class="label">活跃账号</div></div>
+      <div class="topbar-divider"></div>
+      <div class="topbar-stat"><div class="num"><%= memberStats.pendingApplications %></div><div class="label">待审核申请</div></div>
+    </div>
+  </header>
+
+  <div class="content">
+    <div class="sec-header">
+      <h2>会员管理</h2>
+      <span class="tag">Members</span>
+      <a href="/admin/member-applications?status=pending" class="export-btn">查看申请队列</a>
+    </div>
+
+    <form method="GET" action="/admin/users" class="filter-bar">
+      <span class="filter-label">等级</span>
+      <select name="tier" class="filter-select">
+        <option value="">全部</option>
+        <option value="member" <%= filters.tier === 'member' ? 'selected' : '' %>>普通会员</option>
+        <option value="supporter" <%= filters.tier === 'supporter' ? 'selected' : '' %>>支持会员</option>
+        <option value="contributor" <%= filters.tier === 'contributor' ? 'selected' : '' %>>投稿协作会员</option>
+        <option value="editorial" <%= filters.tier === 'editorial' ? 'selected' : '' %>>编辑协作身份</option>
+      </select>
+
+      <span class="filter-label">状态</span>
+      <select name="state" class="filter-select">
+        <option value="">全部</option>
+        <option value="active" <%= filters.state === 'active' ? 'selected' : '' %>>启用</option>
+        <option value="inactive" <%= filters.state === 'inactive' ? 'selected' : '' %>>停用</option>
+      </select>
+
+      <input type="text" name="q" class="filter-search" placeholder="搜索邮箱或昵称" value="<%= filters.q || '' %>">
+      <button type="submit" class="filter-submit">筛选</button>
+      <a href="/admin/users" class="filter-reset">重置</a>
+    </form>
+
+    <div class="ms-list">
+      <div class="ms-head member-admin-head">
+        <span>ID</span><span>会员</span><span>等级</span><span>状态</span><span>投稿</span><span>申请</span><span>最近登录</span>
+      </div>
+      <% if (!users.length) { %>
+      <div class="empty-state"><div class="icon">◌</div>暂无符合筛选条件的会员。</div>
+      <% } else { %>
+      <% users.forEach(function(user) { %>
+      <a href="/admin/users/<%= user.id %>" class="ms-item member-admin-row">
+        <span class="ms-idx"><%= user.id %></span>
+        <span>
+          <strong class="member-admin-name"><%= user.display_name %></strong>
+          <small class="member-admin-email"><%= user.email %></small>
+        </span>
+        <span><span class="badge badge-pending"><%= ({ member: '普通会员', supporter: '支持会员', contributor: '投稿协作会员', editorial: '编辑协作身份' })[user.member_tier] || user.member_tier %></span></span>
+        <span><span class="badge <%= user.is_active ? 'badge-accepted' : 'badge-rejected' %>"><%= user.is_active ? '启用' : '停用' %></span></span>
+        <span class="member-admin-mono"><%= user.submission_count || 0 %></span>
+        <span class="member-admin-mono"><%= user.pending_application_count || 0 %></span>
+        <span class="member-admin-mono"><%= user.last_login_at ? String(user.last_login_at).substring(0, 16).replace('T', ' ') : '暂无' %></span>
+      </a>
+      <% }) %>
+      <% } %>
+    </div>
+
+    <% if (totalPages > 1) { %>
+    <div class="pagination">
+      <% var qs = []; if (filters.tier) qs.push('tier=' + filters.tier); if (filters.state) qs.push('state=' + filters.state); if (filters.q) qs.push('q=' + encodeURIComponent(filters.q)); var base = '/admin/users?' + qs.join('&') + (qs.length ? '&' : ''); %>
+      <% if (page > 1) { %><a href="<%= base %>page=<%= page - 1 %>" class="page-link">上一页</a><% } %>
+      <span class="page-info"><%= page %> / <%= totalPages %></span>
+      <% if (page < totalPages) { %><a href="<%= base %>page=<%= page + 1 %>" class="page-link">下一页</a><% } %>
+    </div>
+    <% } %>
+  </div>
+</div>
+</div>
+
+<script>
+var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
+if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}
+if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
+</script>
+</body></html>

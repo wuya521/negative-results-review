@@ -1998,3 +1998,110 @@ button, input, textarea, select {
     gap: .6rem;
   }
 }
+
+.member-panel--notice {
+  grid-column: span 2;
+  border-left: 3px solid var(--accent);
+}
+.member-panel--success {
+  background: #eef6ef;
+  border-color: #c8e6c9;
+}
+.member-panel--error {
+  background: #fdf0ed;
+  border-color: #f1c6ba;
+}
+.member-panel--notice strong {
+  display: block;
+  margin-bottom: .35rem;
+  font-family: var(--font-serif);
+}
+.member-panel--wide {
+  grid-column: span 2;
+}
+.member-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: .9rem;
+}
+.member-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  font-size: .82rem;
+}
+.member-form-field span {
+  color: var(--text-light);
+  letter-spacing: .04em;
+}
+.member-form-field input,
+.member-form-field textarea,
+.member-form-field select {
+  width: 100%;
+  padding: .7rem .85rem;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 2px;
+}
+.member-form-field textarea {
+  resize: vertical;
+  line-height: 1.75;
+}
+.member-application-grid {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 1.2rem;
+  margin-bottom: 1rem;
+}
+.member-application-note {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  background: var(--bg-alt);
+  font-size: .82rem;
+  color: var(--text-sec);
+}
+.member-application-note ul {
+  list-style: disc;
+  margin-left: 1rem;
+}
+.member-application-admin-note {
+  margin-top: .5rem;
+  color: var(--accent);
+}
+.member-badge {
+  display: inline-block;
+  padding: .2rem .55rem;
+  font-size: .7rem;
+  border: 1px solid var(--border-dark);
+  letter-spacing: .04em;
+}
+.member-badge--pending {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+.member-badge--approved {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.member-badge--rejected {
+  color: var(--text-light);
+}
+.member-item__meta-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: .35rem;
+}
+.member-list--applications .member-item,
+.member-item--application {
+  align-items: flex-start;
+}
+@media (max-width: 900px) {
+  .member-panel--notice,
+  .member-panel--wide {
+    grid-column: span 1;
+  }
+  .member-application-grid {
+    grid-template-columns: 1fr;
+  }
+}

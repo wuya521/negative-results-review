@@ -1,0 +1,160 @@
+﻿<%- include('partials/head', { pageTitle: user.display_name + ' - 会员详情' }) %>
+<body>
+<div class="layout">
+<%- include('partials/sidebar', { active: 'users', stats: stats, admin: admin }) %>
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
+      <span class="topbar-issue">MEMBER</span>
+      <span class="topbar-status"><span class="dot"></span>会员详情</span>
+    </div>
+  </header>
+
+  <div class="content">
+    <a href="/admin/users" class="detail-back">← 返回会员列表</a>
+
+    <% if (msg) { %>
+    <div class="toast show" style="position:relative;bottom:auto;right:auto;margin-bottom:1rem;pointer-events:auto;opacity:1;transform:none">
+      <%= ({ tier_saved: '会员等级已更新。', status_saved: '会员状态已更新。' })[msg] || msg %>
+    </div>
+    <% } %>
+
+    <div class="detail-card">
+      <h1 class="detail-title"><%= user.display_name %></h1>
+      <div class="detail-badges">
+        <span class="badge badge-pending"><%= ({ member: '普通会员', supporter: '支持会员', contributor: '投稿协作会员', editorial: '编辑协作身份' })[user.member_tier] || user.member_tier %></span>
+        <span class="badge <%= user.is_active ? 'badge-accepted' : 'badge-rejected' %>"><%= user.is_active ? '启用中' : '已停用' %></span>
+      </div>
+      <div class="detail-meta">
+        <div class="meta-item"><div class="ml">邮箱</div><div class="mv mono"><%= user.email %></div></div>
+        <div class="meta-item"><div class="ml">加入时间</div><div class="mv mono"><%= user.created_at %></div></div>
+        <div class="meta-item"><div class="ml">最近登录</div><div class="mv mono"><%= user.last_login_at || '暂无' %></div></div>
+        <div class="meta-item"><div class="ml">个人简介</div><div class="mv"><%= user.bio || '尚未填写' %></div></div>
+      </div>
+    </div>
+
+    <% if (admin.role === 'admin') { %>
+    <div class="detail-card member-admin-actions-grid">
+      <form method="POST" action="/admin/users/<%= user.id %>/tier" class="edit-card member-admin-inline-card">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <h3>会员授予</h3>
+        <div class="edit-field">
+          <label for="member_tier">调整等级</label>
+          <select name="member_tier" id="member_tier">
+            <option value="member" <%= user.member_tier === 'member' ? 'selected' : '' %>>普通会员</option>
+            <option value="supporter" <%= user.member_tier === 'supporter' ? 'selected' : '' %>>支持会员</option>
+            <option value="contributor" <%= user.member_tier === 'contributor' ? 'selected' : '' %>>投稿协作会员</option>
+            <option value="editorial" <%= user.member_tier === 'editorial' ? 'selected' : '' %>>编辑协作身份</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-save">保存等级</button>
+      </form>
+
+      <form method="POST" action="/admin/users/<%= user.id %>/status" class="edit-card member-admin-inline-card">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <h3>账户状态</h3>
+        <p class="member-admin-status-text">当前状态：<strong><%= user.is_active ? '启用中' : '已停用' %></strong></p>
+        <input type="hidden" name="is_active" value="<%= user.is_active ? '0' : '1' %>">
+        <button type="submit" class="act-btn <%= user.is_active ? 'danger' : 'green' %>"><%= user.is_active ? '停用账户' : '恢复账户' %></button>
+      </form>
+    </div>
+    <% } %>
+
+    <div class="detail-card">
+      <h3 class="member-admin-section-title">会员申请记录</h3>
+      <% if (applications.length) { %>
+      <div class="member-admin-stack">
+        <% applications.forEach(function(item) { %>
+        <article class="member-admin-record">
+          <div>
+            <div class="member-item__eyebrow"><%= String(item.created_at).substring(0, 16).replace('T', ' ') %></div>
+            <h4><%= ({ supporter: '支持会员', contributor: '投稿协作会员' })[item.requested_tier] || item.requested_tier %></h4>
+            <p><%= item.reason %></p>
+            <% if (item.admin_note) { %><p class="member-application-admin-note">审核备注：<%= item.admin_note %></p><% } %>
+          </div>
+          <div class="member-item__meta-block">
+            <span class="member-badge member-badge--<%= item.status %>"><%= ({ pending: '待审核', approved: '已通过', rejected: '未通过' })[item.status] || item.status %></span>
+            <% if (item.reviewer_name) { %><span class="member-item__meta">审核人：<%= item.reviewer_name %></span><% } %>
+          </div>
+        </article>
+        <% }) %>
+      </div>
+      <% } else { %>
+      <p class="member-empty">该会员还没有提交过等级申请。</p>
+      <% } %>
+    </div>
+
+    <div class="detail-card">
+      <h3 class="member-admin-section-title">最近投稿</h3>
+      <% if (submissions.length) { %>
+      <div class="member-admin-stack">
+        <% submissions.forEach(function(item) { %>
+        <a href="/admin/manuscripts/<%= item.id %>" class="member-admin-record member-admin-record--link">
+          <div>
+            <div class="member-item__eyebrow"><%= item.submission_no %></div>
+            <h4><%= item.title %></h4>
+            <p><%= item.section %> · <%= statusLabel(item.status) %></p>
+          </div>
+          <div class="member-item__meta-block">
+            <span class="member-item__meta"><%= String(item.updated_at).substring(0, 16).replace('T', ' ') %></span>
+          </div>
+        </a>
+        <% }) %>
+      </div>
+      <% } else { %>
+      <p class="member-empty">该会员暂无绑定投稿。</p>
+      <% } %>
+    </div>
+
+    <div class="detail-card member-admin-split">
+      <section>
+        <h3 class="member-admin-section-title">最近收藏</h3>
+        <% if (favorites.length) { %>
+        <div class="member-admin-stack">
+          <% favorites.forEach(function(item) { %>
+          <a href="/article/<%= item.id %>" class="member-admin-record member-admin-record--link">
+            <div>
+              <div class="member-item__eyebrow">收藏于 <%= String(item.favorited_at).substring(0, 10) %></div>
+              <h4><%= item.title %></h4>
+              <p><%= item.section %></p>
+            </div>
+          </a>
+          <% }) %>
+        </div>
+        <% } else { %>
+        <p class="member-empty">暂无收藏记录。</p>
+        <% } %>
+      </section>
+      <section>
+        <h3 class="member-admin-section-title">最近通知</h3>
+        <% if (notifications.length) { %>
+        <div class="member-admin-stack">
+          <% notifications.forEach(function(item) { %>
+          <article class="member-admin-record">
+            <div>
+              <div class="member-item__eyebrow"><%= String(item.created_at).substring(0, 16).replace('T', ' ') %></div>
+              <h4><%= item.title %></h4>
+              <p><%= item.content %></p>
+            </div>
+            <div class="member-item__meta-block">
+              <span class="member-badge member-badge--<%= item.is_read ? 'approved' : 'pending' %>"><%= item.is_read ? '已读' : '未读' %></span>
+            </div>
+          </article>
+          <% }) %>
+        </div>
+        <% } else { %>
+        <p class="member-empty">暂无站内通知。</p>
+        <% } %>
+      </section>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
+if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}
+if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
+</script>
+</body></html>

@@ -95,6 +95,23 @@ async function initDB() {
   `);
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS member_applications (
+      id              INT AUTO_INCREMENT PRIMARY KEY,
+      user_id         INT NOT NULL,
+      requested_tier  VARCHAR(20) NOT NULL DEFAULT 'supporter',
+      reason          TEXT NOT NULL,
+      status          VARCHAR(20) NOT NULL DEFAULT 'pending',
+      admin_note      TEXT,
+      reviewed_by     INT,
+      reviewed_at     DATETIME,
+      created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_member_app_user (user_id),
+      INDEX idx_member_app_status (status, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS comments (
       id          INT AUTO_INCREMENT PRIMARY KEY,
       article_id  INT          NOT NULL,
