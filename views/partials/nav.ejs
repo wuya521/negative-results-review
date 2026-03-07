@@ -21,7 +21,11 @@
         <span class="tier-badge tier-badge--compact <%= actionTier.className %>"><%= actionTier.shortLabel %></span>
       </div>
       <% } %>
-      <button class="theme-toggle" id="themeToggle" aria-label="切换深色模式" title="切换深色模式">◐</button>
+      <button class="theme-toggle" id="themeToggle" aria-label="切换深色模式" aria-pressed="false" title="切换深色模式">
+        <span class="theme-toggle__label theme-toggle__label--light" aria-hidden="true">LIGHT</span>
+        <span class="theme-toggle__thumb" aria-hidden="true"></span>
+        <span class="theme-toggle__label theme-toggle__label--dark" aria-hidden="true">DARK</span>
+      </button>
       <span class="nav-issue">ISSUE / 2026</span>
       <button class="nav-toggle" id="navToggle" aria-label="菜单">☰</button>
     </div>

@@ -17,6 +17,24 @@
     navToggle.textContent = isOpen ? 'X' : '☰';
   }
 
+  function applyThemeState(isDark) {
+    if (isDark) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      localStorage.setItem('nrr-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('nrr-theme', 'light');
+    }
+
+    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+
+    if (!themeToggle) return;
+    var nextLabel = isDark ? '切换到浅色模式' : '切换到深色模式';
+    themeToggle.setAttribute('aria-pressed', String(isDark));
+    themeToggle.setAttribute('aria-label', nextLabel);
+    themeToggle.setAttribute('title', nextLabel);
+  }
+
   if (nav) {
     window.addEventListener('scroll', function () {
       nav.classList.toggle('scrolled', window.scrollY > 30);
@@ -38,24 +56,12 @@
     });
   }
 
+  applyThemeState(document.documentElement.getAttribute('data-theme') === 'dark');
+
   if (themeToggle) {
-    function updateToggleIcon() {
-      var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      themeToggle.textContent = isDark ? '○' : '◐';
-    }
-
-    updateToggleIcon();
-
     themeToggle.addEventListener('click', function () {
       var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      if (isDark) {
-        document.documentElement.removeAttribute('data-theme');
-        localStorage.setItem('nrr-theme', 'light');
-      } else {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        localStorage.setItem('nrr-theme', 'dark');
-      }
-      updateToggleIcon();
+      applyThemeState(!isDark);
     });
   }
 
