@@ -7,14 +7,14 @@
       <a href="/submit">投稿</a>
       <a href="/track">追踪</a>
       <a href="/about">关于</a>
-      <% if (currentUser) { %>
-      <a href="/me">会员工作台<% if (unreadNotifications) { %> (<%= unreadNotifications %>)<% } %></a>
+      <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+      <a href="/me">会员工作台<% if (typeof unreadNotifications !== 'undefined' && unreadNotifications) { %> (<%= unreadNotifications %>)<% } %></a>
       <% } else { %>
       <a href="/login">登录</a>
       <% } %>
     </div>
     <div class="nav-actions">
-      <% if (currentUser) { %>
+      <% if (typeof currentUser !== 'undefined' && currentUser) { %>
       <span class="nav-user"><%= currentUser.display_name %></span>
       <% } %>
       <button class="theme-toggle" id="themeToggle" aria-label="切换深色模式" title="切换深色模式">◐</button>
