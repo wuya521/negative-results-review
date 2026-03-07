@@ -107,15 +107,34 @@ async function start() {
     Promise.resolve().then(async () => {
       res.locals.db = pool;
       res.locals.currentPath = req.path;
-      res.locals.currentUser = req.session.user || null;
+      res.locals.currentUser = null;
       res.locals.unreadNotifications = 0;
+
       if (req.session.user && req.session.user.id) {
-        const [[row]] = await pool.execute(
-          'SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND is_read = 0',
+        const [userRows] = await pool.execute(
+          'SELECT id, email, display_name, member_tier, is_active FROM users WHERE id = ? LIMIT 1',
           [req.session.user.id]
         );
-        res.locals.unreadNotifications = Number(row.c || 0);
+
+        if (userRows.length > 0 && Number(userRows[0].is_active) === 1) {
+          req.session.user = {
+            id: userRows[0].id,
+            email: userRows[0].email,
+            display_name: userRows[0].display_name,
+            member_tier: userRows[0].member_tier || 'member'
+          };
+          res.locals.currentUser = req.session.user;
+
+          const [[row]] = await pool.execute(
+            'SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND is_read = 0',
+            [req.session.user.id]
+          );
+          res.locals.unreadNotifications = Number(row.c || 0);
+        } else {
+          delete req.session.user;
+        }
       }
+
       res.locals.formatContent = renderMarkdown;
       res.locals.statusLabel = function (s) { return STATUS_LABELS[s] || s; };
       res.locals.riskLabel = function (r) { return RISK_LABELS[r] || r; };
