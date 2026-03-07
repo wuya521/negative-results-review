@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { initDB } = require('./db/init');
 const { STATUS_LABELS, RISK_LABELS, SECTIONS, STATUSES, estimateReadingTime } = require('./config/constants');
+const { getAdminRoleLabel, getArchiveGradeMeta } = require('./lib/admin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -153,6 +154,8 @@ async function start() {
       };
       res.locals.estimateReadingTime = estimateReadingTime;
       res.locals.memberTierMeta = getMemberTierMeta;
+      res.locals.getAdminRoleLabel = getAdminRoleLabel;
+      res.locals.getArchiveGradeMeta = getArchiveGradeMeta;
       res.locals.sections = SECTIONS;
       res.locals.statuses = STATUSES;
     }).then(() => next(), next);

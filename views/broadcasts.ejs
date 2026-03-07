@@ -18,6 +18,12 @@
       <h2><%= item.title %></h2>
       <% if (item.subtitle) { %><p class="broadcast-archive-card__subtitle"><%= item.subtitle %></p><% } %>
       <p class="broadcast-archive-card__body"><%= item.content %></p>
+      <% if (item.signature_name || item.signature_title) { %>
+      <div class="broadcast-archive-card__signature">
+        <strong><%= item.signature_name || '馆务署名' %></strong>
+        <% if (item.signature_title) { %><span><%= item.signature_title %></span><% } %>
+      </div>
+      <% } %>
       <div class="broadcast-archive-card__footer">
         <span><%= item.created_at ? String(item.created_at).substring(0, 16).replace('T', ' ') : '' %></span>
         <a href="/broadcasts/<%= item.id %>">查看详情</a>

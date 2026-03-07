@@ -7,7 +7,7 @@
     <div class="topbar-left">
       <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
       <span class="topbar-issue">ISSUE DESK</span>
-      <span class="topbar-status"><span class="dot"></span>期号与刊标管理</span>
+      <span class="topbar-status"><span class="dot"></span>期号与策展联署</span>
     </div>
   </header>
 
@@ -19,11 +19,11 @@
 
     <% if (typeof msg !== 'undefined' && msg) { %>
     <div class="detail-card" style="margin-bottom:1rem;font-size:.82rem;color:var(--text-sec)">
-      <%= ({ created: '期号已创建。', current_saved: '当前期号已切换。', invalid: '请完整填写期号信息。' })[msg] || msg %>
+      <%= ({ created: '期号已创建。', current_saved: '当前期号已切换。', invalid: '请完整填写期号信息。', saved: '期号信息已更新。' })[msg] || msg %>
     </div>
     <% } %>
 
-    <div class="member-admin-actions-grid">
+    <div class="member-admin-actions-grid issue-admin-grid">
       <section class="detail-card member-admin-inline-card">
         <h3 class="member-admin-section-title">创建新期号</h3>
         <form method="POST" action="/admin/issues" class="member-form-stack">
@@ -37,6 +37,25 @@
           <label class="member-form-field"><span>主题标题</span><input type="text" name="theme_title" placeholder="本期主题"></label>
           <label class="member-form-field"><span>主题说明</span><textarea name="theme_note" rows="4" placeholder="用于首页、本期刊标与馆藏页说明"></textarea></label>
           <label class="member-form-field"><span>封面标签</span><input type="text" name="cover_label" placeholder="创刊号 / 特别专题"></label>
+          <div class="edit-grid">
+            <label class="member-form-field"><span>主策展人</span>
+              <select name="lead_admin_id">
+                <option value="">未设置</option>
+                <% adminOptions.forEach(function(item) { %>
+                <option value="<%= item.id %>"><%= item.display_name || item.username %> · <%= item.title || item.role %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label class="member-form-field"><span>联合策展人</span>
+              <select name="co_admin_id">
+                <option value="">未设置</option>
+                <% adminOptions.forEach(function(item) { %>
+                <option value="<%= item.id %>"><%= item.display_name || item.username %> · <%= item.title || item.role %></option>
+                <% }) %>
+              </select>
+            </label>
+          </div>
+          <label class="member-form-field"><span>策展前言</span><textarea name="curator_statement" rows="4" placeholder="写给首页、专题区和人物页的策展说明"></textarea></label>
           <label class="edit-check"><input type="checkbox" name="is_current" value="1"> 设为当前期号</label>
           <button type="submit" class="btn-save">创建期号</button>
         </form>
@@ -44,24 +63,65 @@
 
       <section class="detail-card member-admin-inline-card">
         <h3 class="member-admin-section-title">现有期号</h3>
-        <div class="member-admin-stack">
+        <div class="member-admin-stack issue-record-stack">
           <% issues.forEach(function(issue) { %>
-          <article class="member-admin-record">
-            <div>
-              <div class="member-item__eyebrow"><%= issue.issue_code %> · <%= issue.year %> <%= issue.season || '' %></div>
-              <h4><%= issue.issue_label %></h4>
-              <p><%= issue.theme_title || '未填写主题' %></p>
-              <p>稿件数：<%= issue.manuscript_count || 0 %></p>
+          <article class="member-admin-record issue-record-card">
+            <div class="issue-record-head">
+              <div>
+                <div class="member-item__eyebrow"><%= issue.issue_code %> · <%= issue.year %> <%= issue.season || '' %></div>
+                <h4><%= issue.issue_label %></h4>
+                <p><%= issue.theme_title || '未填写主题' %></p>
+              </div>
+              <div class="member-item__meta-block">
+                <span class="member-badge member-badge--<%= issue.is_current ? 'approved' : 'pending' %>"><%= issue.is_current ? '当前期号' : '历史期号' %></span>
+                <span class="member-badge member-badge--<%= issue.is_active ? 'approved' : 'rejected' %>"><%= issue.is_active ? '公开' : '停用' %></span>
+              </div>
             </div>
-            <div class="member-item__meta-block">
-              <span class="member-badge member-badge--<%= issue.is_current ? 'approved' : 'pending' %>"><%= issue.is_current ? '当前期号' : '历史期号' %></span>
-              <% if (!issue.is_current) { %>
-              <form method="POST" action="/admin/issues/<%= issue.id %>/current">
-                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                <button type="submit" class="member-mark-read">设为当前期号</button>
-              </form>
-              <% } %>
+
+            <div class="issue-record-meta">
+              <span>稿件数：<strong><%= issue.manuscript_count || 0 %></strong></span>
+              <span>主策展：<strong><%= issue.lead_display_name || issue.lead_username || '未设置' %></strong></span>
+              <span>联合策展：<strong><%= issue.co_display_name || issue.co_username || '未设置' %></strong></span>
             </div>
+
+            <form method="POST" action="/admin/issues/<%= issue.id %>/update" class="member-form-stack issue-record-form">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+              <div class="edit-grid">
+                <label class="member-form-field"><span>期号代码</span><input type="text" name="issue_code" value="<%= issue.issue_code %>" required></label>
+                <label class="member-form-field"><span>展示名称</span><input type="text" name="issue_label" value="<%= issue.issue_label %>" required></label>
+              </div>
+              <div class="edit-grid">
+                <label class="member-form-field"><span>季节</span><input type="text" name="season" value="<%= issue.season || '' %>"></label>
+                <label class="member-form-field"><span>年份</span><input type="number" name="year" value="<%= issue.year %>" min="2020" max="2099"></label>
+              </div>
+              <label class="member-form-field"><span>主题标题</span><input type="text" name="theme_title" value="<%= issue.theme_title || '' %>"></label>
+              <label class="member-form-field"><span>主题说明</span><textarea name="theme_note" rows="3"><%= issue.theme_note || '' %></textarea></label>
+              <label class="member-form-field"><span>封面标签</span><input type="text" name="cover_label" value="<%= issue.cover_label || '' %>"></label>
+              <div class="edit-grid">
+                <label class="member-form-field"><span>主策展人</span>
+                  <select name="lead_admin_id">
+                    <option value="">未设置</option>
+                    <% adminOptions.forEach(function(item) { %>
+                    <option value="<%= item.id %>" <%= Number(issue.lead_admin_id || 0) === Number(item.id) ? 'selected' : '' %>><%= item.display_name || item.username %> · <%= item.title || item.role %></option>
+                    <% }) %>
+                  </select>
+                </label>
+                <label class="member-form-field"><span>联合策展人</span>
+                  <select name="co_admin_id">
+                    <option value="">未设置</option>
+                    <% adminOptions.forEach(function(item) { %>
+                    <option value="<%= item.id %>" <%= Number(issue.co_admin_id || 0) === Number(item.id) ? 'selected' : '' %>><%= item.display_name || item.username %> · <%= item.title || item.role %></option>
+                    <% }) %>
+                  </select>
+                </label>
+              </div>
+              <label class="member-form-field"><span>策展前言</span><textarea name="curator_statement" rows="4"><%= issue.curator_statement || '' %></textarea></label>
+              <div class="issue-record-checks">
+                <label class="edit-check"><input type="checkbox" name="is_current" value="1" <%= issue.is_current ? 'checked' : '' %>> 当前期号</label>
+                <label class="edit-check"><input type="checkbox" name="is_active" value="1" <%= issue.is_active ? 'checked' : '' %>> 对外公开</label>
+              </div>
+              <button type="submit" class="btn-save">保存期号信息</button>
+            </form>
           </article>
           <% }) %>
         </div>
@@ -76,4 +136,3 @@ if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mo
 if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
 </script>
 </body></html>
-

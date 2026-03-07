@@ -1,5 +1,5 @@
-/* ============================================================
-   负结果通讯 — Negative Results Review
+﻿/* ============================================================
+   璐熺粨鏋滈€氳 鈥?Negative Results Review
    Global Stylesheet
    ============================================================ */
 
@@ -814,7 +814,7 @@ button, input, textarea, select {
   margin-bottom: .3rem;
 }
 .sidebar-card__body li::before {
-  content: "–";
+  content: "鈥?;
   position: absolute;
   left: 0;
   color: var(--text-light);
@@ -967,7 +967,7 @@ button, input, textarea, select {
   color: var(--text-sec);
 }
 .about-content li::before {
-  content: "—";
+  content: "鈥?;
   position: absolute;
   left: 0;
   color: var(--text-light);
@@ -3183,3 +3183,341 @@ button, input, textarea, select {
     gap: .65rem;
   }
 }
+
+/* ===== V1.4 Curator Board + Archive Identity ===== */
+.about-shell {
+  display: grid;
+  gap: 1.4rem;
+}
+
+.about-block {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.7);
+  padding: 1.4rem;
+}
+
+.about-block h2 {
+  font-family: var(--font-serif);
+  margin-bottom: .8rem;
+}
+
+.about-list {
+  list-style: disc;
+  margin-left: 1rem;
+  color: var(--text-sec);
+}
+
+.curator-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.curator-board--stacked {
+  grid-template-columns: 1fr;
+}
+
+.curator-card {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.78);
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+}
+
+.curator-card--wide {
+  padding: 1.35rem;
+}
+
+.curator-card__head,
+.curator-card__meta,
+.archive-record__stamp,
+.curator-signature,
+.broadcast-slide__signature {
+  display: flex;
+  justify-content: space-between;
+  gap: .6rem;
+  flex-wrap: wrap;
+}
+
+.curator-card__badge,
+.curator-signature__label,
+.archive-record__meta span,
+.archive-record__note span {
+  font-family: var(--font-mono);
+  font-size: .65rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-light);
+}
+
+.curator-card__role {
+  font-size: .76rem;
+  color: var(--accent);
+}
+
+.curator-card__name {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+}
+
+.curator-card__bio,
+.archive-record__note p,
+.broadcast-slide__signature span {
+  color: var(--text-sec);
+  line-height: 1.8;
+}
+
+.curator-card__meta {
+  font-size: .76rem;
+  color: var(--text-light);
+}
+
+.broadcast-slide__signature {
+  margin-top: 1rem;
+  padding-top: .9rem;
+  border-top: 1px solid var(--border);
+  align-items: baseline;
+}
+
+.reading-card--archive-record {
+  gap: .9rem;
+}
+
+.archive-record__stamp strong,
+.archive-record__meta strong,
+.curator-signature strong {
+  font-family: var(--font-serif);
+  font-size: .94rem;
+}
+
+.archive-record__note {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  padding-top: .8rem;
+  border-top: 1px solid var(--border);
+}
+
+.curator-signature {
+  align-items: baseline;
+  padding-top: .8rem;
+  border-top: 1px solid var(--border);
+}
+
+.curator-signature--broadcast,
+.curator-signature--preview {
+  margin-top: 1rem;
+}
+
+.broadcast-detail-card {
+  border: 1px solid var(--border);
+}
+
+.section-header--compact {
+  margin-bottom: 1.2rem;
+}
+
+[data-theme="dark"] .about-block,
+[data-theme="dark"] .curator-card,
+[data-theme="dark"] .broadcast-detail-card,
+[data-theme="dark"] .reading-card--archive-record {
+  background: rgba(28,28,30,.84);
+  border-color: #414148;
+}
+
+[data-theme="dark"] .curator-card__bio,
+[data-theme="dark"] .archive-record__note p,
+[data-theme="dark"] .broadcast-slide__signature span {
+  color: #b9b7b3;
+}
+
+@media (max-width: 980px) {
+  .curator-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* V1.5 Curator Profiles + Issue Signatures */
+.curator-card--link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.curator-card--link:hover {
+  transform: translateY(-3px);
+}
+
+.issue-curator-meta,
+.featured-box__curators,
+.archive-curator-list,
+.print-sheet__curators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+}
+
+.issue-curator-meta,
+.featured-box__curators {
+  margin-top: 0.95rem;
+  font-size: 0.82rem;
+  color: var(--text-light);
+}
+
+.issue-curator-meta a,
+.featured-box__curators a,
+.archive-curator-list a,
+.curator-signature__name {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.featured-box__statement,
+.print-sheet__statement {
+  margin-top: 1rem;
+  padding-left: 1rem;
+  border-left: 2px solid rgba(188, 84, 38, 0.35);
+  color: var(--text-sec);
+  font-size: 0.92rem;
+  line-height: 1.8;
+}
+
+.archive-record__meta--stacked {
+  display: block;
+}
+
+.archive-curator-list {
+  margin-top: 0.55rem;
+  font-size: 0.84rem;
+  color: var(--text-sec);
+}
+
+.curator-signature__name {
+  font-weight: 700;
+}
+
+.broadcast-archive-card__signature {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-sec);
+}
+
+.curator-profile-hero .curator-profile-hero__badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.curator-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.4rem;
+}
+
+.curator-profile-stats div {
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(82, 68, 44, 0.16);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.curator-profile-stats strong {
+  display: block;
+  font-size: 1.4rem;
+  color: var(--text-main);
+}
+
+.curator-profile-stats span {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--text-light);
+}
+
+.curator-profile-articles,
+.curator-issue-list,
+.curator-broadcast-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.curator-profile-article,
+.curator-issue-card,
+.curator-broadcast-item {
+  display: block;
+  padding: 1.15rem 1.2rem;
+  border: 1px solid rgba(82, 68, 44, 0.16);
+  background: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  color: inherit;
+}
+
+.curator-profile-article:hover,
+.curator-broadcast-item:hover {
+  border-color: rgba(188, 84, 38, 0.3);
+}
+
+.curator-profile-article__section,
+.curator-issue-card__meta,
+.curator-broadcast-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.85rem;
+  font-size: 0.78rem;
+  color: var(--text-light);
+}
+
+.curator-profile-article h3,
+.curator-issue-card h3 {
+  margin: 0.55rem 0 0.45rem;
+}
+
+.curator-profile-article p,
+.curator-broadcast-item p,
+.curator-issue-card p {
+  margin: 0;
+  color: var(--text-sec);
+}
+
+.curator-issue-card blockquote {
+  margin: 0.8rem 0 0;
+  padding-left: 0.9rem;
+  border-left: 2px solid rgba(188, 84, 38, 0.35);
+  color: var(--text-sec);
+}
+
+.print-sheet__curators {
+  margin-top: 1rem;
+  font-size: 0.82rem;
+  color: var(--text-sec);
+}
+
+[data-theme="dark"] .curator-profile-stats div,
+[data-theme="dark"] .curator-profile-article,
+[data-theme="dark"] .curator-issue-card,
+[data-theme="dark"] .curator-broadcast-item,
+[data-theme="dark"] .broadcast-archive-card__signature {
+  background: rgba(18, 20, 24, 0.8);
+  border-color: rgba(223, 215, 200, 0.12);
+}
+
+[data-theme="dark"] .featured-box__statement,
+[data-theme="dark"] .print-sheet__statement,
+[data-theme="dark"] .curator-issue-card blockquote {
+  border-left-color: rgba(232, 170, 126, 0.4);
+}
+
+@media (max-width: 720px) {
+  .curator-profile-stats {
+    grid-template-columns: 1fr;
+  }
+}
+

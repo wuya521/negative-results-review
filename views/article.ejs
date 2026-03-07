@@ -1,19 +1,80 @@
 ﻿<%- include('partials/head', { pageTitle: article.renderedTitle, pageDesc: article.renderedExcerpt, ogType: 'article' }) %>
 <%- include('partials/nav') %>
+<%
+  const issueLeadName = article.issue_lead_display_name || article.issue_lead_username || '';
+  const issueCoName = article.issue_co_display_name || article.issue_co_username || '';
+%>
 <header class="page-header reading-header">
   <div class="container article-shell">
     <p class="page-header__label"><%= article.issue_label ? `${article.issue_label} · ${article.season || ''} ${article.year || ''}` : `Archive No. ${article.submission_no}` %></p>
     <h1 class="page-header__title reading-title"><%= article.renderedTitle %></h1>
     <% if (article.renderedDeck) { %><p class="page-header__sub reading-deck"><%= article.renderedDeck %></p><% } %>
-    <div class="article-detail__meta reading-meta"><span><%= article.section %></span><span><%= article.discipline %></span><span><%= article.published_at ? article.published_at.substring(0,10) : article.created_at.substring(0,10) %></span><span>约 <%= readingTime %> 分钟阅读</span><span><%= article.view_count || 0 %> 次阅读</span></div>
+    <div class="article-detail__meta reading-meta">
+      <span><%= article.section %></span>
+      <span><%= article.discipline %></span>
+      <span><%= article.published_at ? article.published_at.substring(0,10) : article.created_at.substring(0,10) %></span>
+      <span>约 <%= readingTime %> 分钟阅读</span>
+      <span><%= article.view_count || 0 %> 次阅读</span>
+    </div>
   </div>
 </header>
 <main class="section reading-page">
   <div class="container article-shell article-shell--reading">
     <aside class="reading-aside fade-in">
       <a href="javascript:history.back()" class="article-detail__back">← 返回</a>
-      <div class="reading-card reading-card--mobile-title"><div class="reading-card__label">文章信息</div><div class="reading-mobile-meta"><span><%= article.section %></span><span><%= article.discipline %></span><span>约 <%= readingTime %> 分钟阅读</span></div></div>
-      <div class="reading-card"><div class="reading-card__label">刊标</div><div><%= article.publication_label || article.issue_label || '馆藏版未命名' %></div></div>
+      <div class="reading-card reading-card--mobile-title">
+        <div class="reading-card__label">文章信息</div>
+        <div class="reading-mobile-meta"><span><%= article.section %></span><span><%= article.discipline %></span><span>约 <%= readingTime %> 分钟阅读</span></div>
+      </div>
+      <div class="reading-card reading-card--archive-record">
+        <div class="reading-card__label">馆藏身份卡</div>
+        <% const gradeMeta = getArchiveGradeMeta(article.archive_grade); %>
+        <div class="archive-record__stamp"><span><%= gradeMeta.stamp %></span><strong><%= gradeMeta.label %></strong></div>
+        <div class="archive-record__meta">
+          <span>馆藏编号</span>
+          <strong><%= article.archive_code || article.submission_no %></strong>
+        </div>
+        <div class="archive-record__meta">
+          <span>刊标</span>
+          <strong><%= article.publication_label || article.issue_label || '未命名馆藏版' %></strong>
+        </div>
+        <% if (issueLeadName || issueCoName) { %>
+        <div class="archive-record__meta archive-record__meta--stacked">
+          <span>本期策展</span>
+          <div class="archive-curator-list">
+            <% if (issueLeadName) { %>
+            <span>主策展：<% if (article.issue_lead_public_slug) { %><a href="/curators/<%= article.issue_lead_public_slug %>"><%= issueLeadName %></a><% } else { %><%= issueLeadName %><% } %></span>
+            <% } %>
+            <% if (issueCoName) { %>
+            <span>联合策展：<% if (article.issue_co_public_slug) { %><a href="/curators/<%= article.issue_co_public_slug %>"><%= issueCoName %></a><% } else { %><%= issueCoName %><% } %></span>
+            <% } %>
+          </div>
+        </div>
+        <% } %>
+        <% if (article.curator_statement) { %>
+        <div class="archive-record__note archive-record__note--statement">
+          <span>专题前言</span>
+          <p><%= article.curator_statement %></p>
+        </div>
+        <% } %>
+        <% if (article.curator_note) { %>
+        <div class="archive-record__note">
+          <span>馆方存档意见</span>
+          <p><%= article.curator_note %></p>
+        </div>
+        <% } %>
+        <% if (article.curator_display_name || article.curator_username) { %>
+        <div class="curator-signature">
+          <span class="curator-signature__label">存档署名</span>
+          <% if (article.curator_public_slug) { %>
+          <a href="/curators/<%= article.curator_public_slug %>" class="curator-signature__name"><%= article.curator_display_name || article.curator_username %></a>
+          <% } else { %>
+          <strong><%= article.curator_display_name || article.curator_username %></strong>
+          <% } %>
+          <% if (article.curator_title) { %><span><%= article.curator_title %></span><% } %>
+        </div>
+        <% } %>
+      </div>
       <div class="reading-card"><div class="reading-card__label">作者</div><div><%= article.author_mode === 'anonymous' ? '匿名' : (article.pen_name || '匿名') %></div></div>
       <div class="reading-card"><div class="reading-card__label">标签</div><div class="article-tags-row compact-tags"><%- include('partials/tags', { a: article }) %></div></div>
       <div class="reading-card"><div class="reading-card__label">馆藏版</div><a href="/article/<%= article.id %>/print" class="member-action-link">查看期刊版</a><a href="/article/<%= article.id %>/pdf" class="member-action-link">导出 PDF 视图</a></div>

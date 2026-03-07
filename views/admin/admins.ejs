@@ -1,4 +1,4 @@
-<%- include('partials/head', { pageTitle: '管理员管理' }) %>
+﻿<%- include('partials/head', { pageTitle: '馆务成员' }) %>
 <body>
 <div class="layout">
 <%- include('partials/sidebar', { active: 'admins', stats: stats, admin: admin }) %>
@@ -6,78 +6,99 @@
   <header class="topbar">
     <div class="topbar-left">
       <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
-      <span class="topbar-issue">ISSUE 001</span>
-      <span class="topbar-status"><span class="dot"></span>管理员管理</span>
+      <span class="topbar-issue">CURATOR BOARD</span>
+      <span class="topbar-status"><span class="dot"></span>联合馆长与馆务成员管理</span>
     </div>
-    <div class="topbar-right"></div>
   </header>
 
   <div class="content">
     <% if (msg) { %>
-    <div class="toast show" style="position:relative;bottom:auto;right:auto;margin-bottom:1rem;pointer-events:auto;opacity:1;transform:none">
-      <%= ({added:'管理员已添加',deleted:'管理员已删除',exists:'用户名已存在',invalid:'请填写完整信息（密码至少6位）',self:'不能删除自己'})[msg] || msg %>
+    <div class="detail-card" style="margin-bottom:1rem;font-size:.82rem;color:var(--text-sec)">
+      <%= ({ added: '馆务成员已创建。', deleted: '成员已移除。', exists: '该用户名已存在。', invalid: '请检查用户名与密码。', self: '不能删除当前登录账号。', profile_saved: '成员资料已保存。' })[msg] || msg %>
     </div>
     <% } %>
 
     <div class="sec-header">
-      <h2>管理员列表</h2>
-      <span class="tag">Admin Management</span>
+      <h2>馆务成员</h2>
+      <span class="tag">Board Management</span>
     </div>
 
-    <div class="ms-list" style="margin-bottom:2rem">
-      <div class="ms-head" style="grid-template-columns:40px 1fr 100px 150px auto">
-        <span>#</span><span>用户名</span><span>角色</span><span>创建时间</span><span>操作</span>
-      </div>
-      <% admins.forEach(function(a, i) { %>
-      <div class="ms-item" style="grid-template-columns:40px 1fr 100px 150px auto;cursor:default">
-        <span class="ms-idx"><%= i+1 %></span>
-        <span style="font-weight:500"><%= a.username %></span>
-        <span class="badge badge-<%= a.role==='admin'?'accepted':'pending' %>"><%= ({admin:'超级管理员',editor:'编辑',reviewer:'审核员'})[a.role] || a.role %></span>
-        <span class="ms-date"><%= a.created_at %></span>
-        <span>
-          <% if (a.id !== admin.id) { %>
-          <form method="POST" action="/admin/admins/<%= a.id %>/delete" style="display:inline" onsubmit="return confirm('确认删除管理员 <%= a.username %>？')">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-            <button type="submit" class="act-btn danger" style="padding:.3rem .6rem;font-size:.68rem">删除</button>
-          </form>
-          <% } else { %>
-          <span style="font-size:.68rem;color:var(--text-light)">当前账号</span>
-          <% } %>
-        </span>
-      </div>
-      <% }) %>
-    </div>
-
-    <!-- Add admin form -->
-    <div class="edit-card">
-      <h3>添加管理员</h3>
-      <form method="POST" action="/admin/admins/add">
+    <section class="detail-card member-admin-inline-card" style="margin-bottom:1.5rem">
+      <h3 class="member-admin-section-title">新增成员</h3>
+      <form method="POST" action="/admin/admins/add" class="member-form-stack">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="edit-grid">
-          <div class="edit-field">
-            <label>用户名</label>
-            <input type="text" name="username" required placeholder="新管理员用户名">
-          </div>
-          <div class="edit-field">
-            <label>密码</label>
-            <input type="password" name="password" required placeholder="至少6位" minlength="6">
-          </div>
-          <div class="edit-field">
-            <label>角色</label>
+          <label class="member-form-field"><span>用户名</span><input type="text" name="username" required></label>
+          <label class="member-form-field"><span>初始密码</span><input type="password" name="password" minlength="6" required></label>
+          <label class="member-form-field"><span>角色</span>
             <select name="role">
-              <option value="editor">编辑</option>
-              <option value="reviewer">审核员</option>
-              <option value="admin">超级管理员</option>
+              <option value="co_curator">联合馆长</option>
+              <option value="editor">编辑策展</option>
+              <option value="reviewer">审稿</option>
+              <option value="admin">创馆人</option>
             </select>
+          </label>
+        </div>
+        <div class="edit-grid">
+          <label class="member-form-field"><span>展示名</span><input type="text" name="display_name" placeholder="前台显示名称"></label>
+          <label class="member-form-field"><span>前台头衔</span><input type="text" name="title" placeholder="Co-Curator / 联合馆长"></label>
+          <label class="member-form-field"><span>徽章文案</span><input type="text" name="badge_label" placeholder="CO-CURATOR"></label>
+        </div>
+        <div class="edit-grid">
+          <label class="member-form-field"><span>公开 slug</span><input type="text" name="public_slug" placeholder="co-curator"></label>
+          <label class="edit-check" style="align-self:end"><input type="checkbox" name="is_public" value="1" checked> 公开展示在前台</label>
+        </div>
+        <button type="submit" class="btn-save">创建成员</button>
+      </form>
+    </section>
+
+    <div class="member-admin-stack">
+      <% admins.forEach(function(item) { %>
+      <section class="detail-card admin-profile-card">
+        <div class="admin-profile-card__head">
+          <div>
+            <div class="member-item__eyebrow"><%= item.username %> · <%= getAdminRoleLabel(item.role) %></div>
+            <h3 class="member-admin-section-title"><%= item.display_name || item.username %></h3>
+            <p class="member-admin-status-text"><%= item.title || '未设置公开头衔' %></p>
+          </div>
+          <div class="member-item__meta-block">
+            <span class="member-badge member-badge--approved"><%= item.badge_label || getAdminRoleLabel(item.role) %></span>
+            <span class="member-link"><%= item.is_public ? '前台公开' : '仅后台可见' %></span>
           </div>
         </div>
-        <button type="submit" class="btn-save" style="margin-top:1rem">添加</button>
-      </form>
+        <form method="POST" action="/admin/admins/<%= item.id %>/profile" class="member-form-stack">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <div class="edit-grid">
+            <label class="member-form-field"><span>角色</span>
+              <select name="role">
+                <option value="admin" <%= item.role === 'admin' ? 'selected' : '' %>>创馆人</option>
+                <option value="co_curator" <%= item.role === 'co_curator' ? 'selected' : '' %>>联合馆长</option>
+                <option value="editor" <%= item.role === 'editor' ? 'selected' : '' %>>编辑策展</option>
+                <option value="reviewer" <%= item.role === 'reviewer' ? 'selected' : '' %>>审稿</option>
+              </select>
+            </label>
+            <label class="member-form-field"><span>展示名</span><input type="text" name="display_name" value="<%= item.display_name || '' %>"></label>
+            <label class="member-form-field"><span>前台头衔</span><input type="text" name="title" value="<%= item.title || '' %>"></label>
+          </div>
+          <div class="edit-grid">
+            <label class="member-form-field"><span>徽章文案</span><input type="text" name="badge_label" value="<%= item.badge_label || '' %>"></label>
+            <label class="member-form-field"><span>公开 slug</span><input type="text" name="public_slug" value="<%= item.public_slug || '' %>"></label>
+            <label class="edit-check" style="align-self:end"><input type="checkbox" name="is_public" value="1" <%= item.is_public ? 'checked' : '' %>> 前台公开展示</label>
+          </div>
+          <label class="member-form-field"><span>简介</span><textarea name="bio" rows="4"><%= item.bio || '' %></textarea></label>
+          <div class="admin-profile-card__actions">
+            <button type="submit" class="btn-save">保存资料</button>
+            <% if (item.id !== admin.id) { %>
+            <button type="submit" class="act-btn danger" formaction="/admin/admins/<%= item.id %>/delete" onclick="return confirm('确认移除该馆务成员？')">删除成员</button>
+            <% } %>
+          </div>
+        </form>
+      </section>
+      <% }) %>
     </div>
   </div>
 </div>
 </div>
-
 <script>
 var menuBtn=document.getElementById('menuBtn'),sidebar=document.getElementById('sidebar'),mobOv=document.getElementById('mobileOverlay');
 if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mobOv.classList.add('open')}}

@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { requireMember } = require('../middleware/auth');
 const { SECTIONS, PER_PAGE_PUBLIC, estimateReadingTime } = require('../config/constants');
 const { buildTypographyPackage } = require('../lib/editorial');
+const { getPublicRoleTitle } = require('../lib/admin');
 
 const router = express.Router();
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -69,7 +70,21 @@ function getSubmissionFingerprint(payload) {
 
 async function loadCurrentIssue(db) {
   const [rows] = await db.execute(
-    'SELECT * FROM issues WHERE is_active = 1 ORDER BY is_current DESC, year DESC, id DESC LIMIT 1'
+    `SELECT i.*,
+            lead.username AS lead_username,
+            COALESCE(NULLIF(lead.display_name, ''), lead.username) AS lead_display_name,
+            lead.title AS lead_title,
+            lead.public_slug AS lead_public_slug,
+            co.username AS co_username,
+            COALESCE(NULLIF(co.display_name, ''), co.username) AS co_display_name,
+            co.title AS co_title,
+            co.public_slug AS co_public_slug
+     FROM issues i
+     LEFT JOIN admins lead ON lead.id = i.lead_admin_id
+     LEFT JOIN admins co ON co.id = i.co_admin_id
+     WHERE i.is_active = 1
+     ORDER BY i.is_current DESC, i.year DESC, i.id DESC
+     LIMIT 1`
   );
   return rows[0] || null;
 }
@@ -94,13 +109,21 @@ async function loadAnnouncements(db, scope, user, limit = 5) {
   const audienceList = getAudienceList(user);
   const placeholders = audienceList.map(() => '?').join(',');
   const [rows] = await db.execute(
-    `SELECT * FROM announcements
-     WHERE is_active = 1
-       AND ${flagMap[scope] || 'show_on_home'} = 1
-       AND audience IN (${placeholders})
-       AND (start_at IS NULL OR start_at <= NOW())
-       AND (end_at IS NULL OR end_at >= NOW())
-     ORDER BY is_pinned DESC, priority DESC, created_at DESC
+    `SELECT a.*,
+            creator.username AS creator_username,
+            creator.display_name AS creator_display_name,
+            creator.title AS creator_title,
+            creator.badge_label AS creator_badge_label,
+            COALESCE(NULLIF(a.signature_name, ''), NULLIF(creator.display_name, ''), creator.username) AS signature_name,
+            COALESCE(NULLIF(a.signature_title, ''), NULLIF(creator.title, ''), '') AS signature_title
+     FROM announcements a
+     LEFT JOIN admins creator ON creator.id = a.created_by
+     WHERE a.is_active = 1
+       AND a.${flagMap[scope] || 'show_on_home'} = 1
+       AND a.audience IN (${placeholders})
+       AND (a.start_at IS NULL OR a.start_at <= NOW())
+       AND (a.end_at IS NULL OR a.end_at >= NOW())
+     ORDER BY a.is_pinned DESC, a.priority DESC, a.created_at DESC
      LIMIT ?`,
     [...audienceList, limit]
   );
@@ -173,6 +196,77 @@ async function loadMemberDashboardData(db, userId) {
   };
 }
 
+async function loadPublicCuratorBoard(db, limit) {
+  const params = [];
+  let sql = `SELECT id, username, role, display_name, title, badge_label, bio, public_slug
+             FROM admins
+             WHERE is_public = 1 AND role IN ('admin', 'co_curator', 'editor')
+             ORDER BY FIELD(role, 'admin', 'co_curator', 'editor'), id ASC`;
+  if (limit) {
+    sql += ' LIMIT ?';
+    params.push(limit);
+  }
+  const [rows] = await db.execute(sql, params);
+  return rows.map((item) => ({
+    ...item,
+    display_name: item.display_name || item.username,
+    public_title: getPublicRoleTitle(item.role, item.title),
+    badge_label: item.badge_label || getPublicRoleTitle(item.role).split(' / ')[0].toUpperCase(),
+  }));
+}
+
+async function loadCuratorProfile(db, slug) {
+  const [rows] = await db.execute(
+    `SELECT a.id, a.username, a.role, a.display_name, a.title, a.badge_label, a.bio, a.public_slug,
+            (SELECT COUNT(*) FROM manuscripts m WHERE m.curator_admin_id = a.id AND m.status IN ('published', 'archived')) AS curated_count,
+            (SELECT COUNT(*) FROM issues i WHERE i.lead_admin_id = a.id OR i.co_admin_id = a.id) AS issue_count,
+            (SELECT COUNT(*) FROM announcements n WHERE n.created_by = a.id AND n.is_active = 1) AS broadcast_count
+     FROM admins a
+     WHERE a.is_public = 1 AND a.public_slug = ?
+     LIMIT 1`,
+    [slug]
+  );
+  if (!rows.length) return null;
+
+  const curator = rows[0];
+  curator.display_name = curator.display_name || curator.username;
+  curator.public_title = getPublicRoleTitle(curator.role, curator.title);
+  curator.badge_label = curator.badge_label || getPublicRoleTitle(curator.role).split(' / ')[0].toUpperCase();
+
+  const [curatedArticles] = await db.execute(
+    `SELECT m.id, m.title, m.display_title, m.deck, m.excerpt, m.section, m.published_at, m.created_at, i.issue_label, i.issue_code, i.season, i.year
+     FROM manuscripts m
+     LEFT JOIN issues i ON i.id = m.issue_id
+     WHERE m.curator_admin_id = ? AND m.status IN ('published', 'archived')
+     ORDER BY COALESCE(m.published_at, m.created_at) DESC
+     LIMIT 8`,
+    [curator.id]
+  );
+
+  const [issues] = await db.execute(
+    `SELECT i.id, i.issue_code, i.issue_label, i.season, i.year, i.theme_title, i.theme_note, i.curator_statement, i.is_current,
+            CASE WHEN i.lead_admin_id = ? THEN 'lead' WHEN i.co_admin_id = ? THEN 'co' ELSE 'member' END AS involvement
+     FROM issues i
+     WHERE i.lead_admin_id = ? OR i.co_admin_id = ?
+     ORDER BY i.is_current DESC, i.year DESC, i.id DESC
+     LIMIT 8`,
+    [curator.id, curator.id, curator.id, curator.id]
+  );
+
+  const [broadcasts] = await db.execute(
+    `SELECT id, title, subtitle, created_at,
+            COALESCE(NULLIF(signature_name, ''), ?) AS signature_name,
+            COALESCE(NULLIF(signature_title, ''), '') AS signature_title
+     FROM announcements
+     WHERE created_by = ? AND is_active = 1
+     ORDER BY is_pinned DESC, priority DESC, created_at DESC
+     LIMIT 5`,
+    [curator.display_name, curator.id]
+  );
+
+  return { curator, curatedArticles, issues, broadcasts };
+}
+
 function prepareArticleRecord(article) {
   const renderedTitle = article.display_title || article.title;
   const renderedContent = article.published_content || article.content;
@@ -204,7 +298,8 @@ module.exports = function (submitLimiter, csrfCheck) {
     );
     const broadcasts = await loadAnnouncements(db, 'home', req.session.user, 6);
     const currentIssue = await loadCurrentIssue(db);
-    res.render('index', { articles, featured, pinned, sections: SECTIONS, broadcasts, currentIssue });
+    const curatorBoard = await loadPublicCuratorBoard(db, 3);
+    res.render('index', { articles, featured, pinned, sections: SECTIONS, broadcasts, currentIssue, curatorBoard });
   }));
 
   router.get('/broadcasts', wrap(async (req, res) => {
@@ -219,9 +314,16 @@ module.exports = function (submitLimiter, csrfCheck) {
     );
     const totalPages = Math.ceil(Number(total) / PER_PAGE_PUBLIC) || 1;
     const [broadcasts] = await db.execute(
-      `SELECT * FROM announcements
-       WHERE audience IN (${placeholders}) AND is_active = 1
-       ORDER BY is_pinned DESC, priority DESC, created_at DESC
+      `SELECT a.*,
+              creator.username AS creator_username,
+              creator.display_name AS creator_display_name,
+              creator.title AS creator_title,
+              COALESCE(NULLIF(a.signature_name, ''), NULLIF(creator.display_name, ''), creator.username) AS signature_name,
+              COALESCE(NULLIF(a.signature_title, ''), NULLIF(creator.title, ''), '') AS signature_title
+       FROM announcements a
+       LEFT JOIN admins creator ON creator.id = a.created_by
+       WHERE a.audience IN (${placeholders}) AND a.is_active = 1
+       ORDER BY a.is_pinned DESC, a.priority DESC, a.created_at DESC
        LIMIT ? OFFSET ?`,
       [...audienceList, PER_PAGE_PUBLIC, (page - 1) * PER_PAGE_PUBLIC]
     );
@@ -230,7 +332,16 @@ module.exports = function (submitLimiter, csrfCheck) {
 
   router.get('/broadcasts/:id', wrap(async (req, res) => {
     const db = res.locals.db;
-    const [rows] = await db.execute('SELECT * FROM announcements WHERE id = ? AND is_active = 1 LIMIT 1', [req.params.id]);
+    const [rows] = await db.execute(`SELECT a.*,
+      creator.username AS creator_username,
+      creator.display_name AS creator_display_name,
+      creator.title AS creator_title,
+      creator.badge_label AS creator_badge_label,
+      COALESCE(NULLIF(a.signature_name, ''), NULLIF(creator.display_name, ''), creator.username) AS signature_name,
+      COALESCE(NULLIF(a.signature_title, ''), NULLIF(creator.title, ''), '') AS signature_title
+      FROM announcements a
+      LEFT JOIN admins creator ON creator.id = a.created_by
+      WHERE a.id = ? AND a.is_active = 1 LIMIT 1`, [req.params.id]);
     if (!rows.length) {
       return res.status(404).render('error', { code: 404, title: '广播不存在', message: '你访问的广播不存在或已下线。' });
     }
@@ -553,14 +664,35 @@ module.exports = function (submitLimiter, csrfCheck) {
     });
   }));
 
-  router.get('/about', (req, res) => res.render('about'));
+  router.get('/about', wrap(async (req, res) => {
+    const db = res.locals.db;
+    const curatorBoard = await loadPublicCuratorBoard(db);
+    res.render('about', { curatorBoard });
+  }));
+
+  router.get('/curators/:slug', wrap(async (req, res) => {
+    const db = res.locals.db;
+    const payload = await loadCuratorProfile(db, req.params.slug);
+    if (!payload) {
+      return res.status(404).render('error', { code: 404, title: '馆员不存在', message: '你访问的馆员资料不存在或尚未公开。' });
+    }
+    res.render('curator', payload);
+  }));
 
   router.get('/article/:id', wrap(async (req, res) => {
     const db = res.locals.db;
     const [rows] = await db.execute(
-      `SELECT m.*, i.issue_code, i.issue_label, i.season, i.year, i.theme_title
+      `SELECT m.*, i.issue_code, i.issue_label, i.season, i.year, i.theme_title, i.curator_statement,
+              curator.username AS curator_username, curator.display_name AS curator_display_name, curator.title AS curator_title, curator.badge_label AS curator_badge_label, curator.public_slug AS curator_public_slug,
+              assignee.username AS assignee_username, assignee.display_name AS assignee_display_name,
+              lead.username AS issue_lead_username, COALESCE(NULLIF(lead.display_name, ''), lead.username) AS issue_lead_display_name, lead.title AS issue_lead_title, lead.public_slug AS issue_lead_public_slug,
+              co.username AS issue_co_username, COALESCE(NULLIF(co.display_name, ''), co.username) AS issue_co_display_name, co.title AS issue_co_title, co.public_slug AS issue_co_public_slug
        FROM manuscripts m
        LEFT JOIN issues i ON i.id = m.issue_id
+       LEFT JOIN admins curator ON curator.id = m.curator_admin_id
+       LEFT JOIN admins assignee ON assignee.id = m.assigned_admin_id
+       LEFT JOIN admins lead ON lead.id = i.lead_admin_id
+       LEFT JOIN admins co ON co.id = i.co_admin_id
        WHERE m.id = ? AND m.status IN ('published','archived')`,
       [req.params.id]
     );
@@ -608,9 +740,15 @@ module.exports = function (submitLimiter, csrfCheck) {
   router.get('/article/:id/print', wrap(async (req, res) => {
     const db = res.locals.db;
     const [rows] = await db.execute(
-      `SELECT m.*, i.issue_code, i.issue_label, i.season, i.year, i.theme_title, i.cover_label
+      `SELECT m.*, i.issue_code, i.issue_label, i.season, i.year, i.theme_title, i.cover_label, i.curator_statement,
+              curator.username AS curator_username, curator.display_name AS curator_display_name, curator.title AS curator_title, curator.badge_label AS curator_badge_label, curator.public_slug AS curator_public_slug,
+              lead.username AS issue_lead_username, COALESCE(NULLIF(lead.display_name, ''), lead.username) AS issue_lead_display_name, lead.title AS issue_lead_title, lead.public_slug AS issue_lead_public_slug,
+              co.username AS issue_co_username, COALESCE(NULLIF(co.display_name, ''), co.username) AS issue_co_display_name, co.title AS issue_co_title, co.public_slug AS issue_co_public_slug
        FROM manuscripts m
        LEFT JOIN issues i ON i.id = m.issue_id
+       LEFT JOIN admins curator ON curator.id = m.curator_admin_id
+       LEFT JOIN admins lead ON lead.id = i.lead_admin_id
+       LEFT JOIN admins co ON co.id = i.co_admin_id
        WHERE m.id = ? AND m.status IN ('published','archived')`,
       [req.params.id]
     );

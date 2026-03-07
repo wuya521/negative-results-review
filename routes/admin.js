@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { requireAuth } = require('../middleware/auth');
 const { SECTIONS, STATUSES, PER_PAGE_ADMIN } = require('../config/constants');
 const { buildTypographyPackage } = require('../lib/editorial');
+const { hasCapability, normalizeAdminRole, getAdminRoleLabel } = require('../lib/admin');
 
 const router = express.Router();
 const wrap = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -39,15 +40,35 @@ async function notifyManuscriptOwner(db, manuscriptId, title, content, link) {
   await notifyUser(db, row.user_id, title, content, link || '/me');
 }
 
-function ensureAdmin(req, res) {
+function ensureFounder(req, res) {
   if (req.session.admin.role === 'admin') return true;
   res.redirect('/admin/dashboard');
   return false;
 }
 
+function ensureCapability(req, res, capability) {
+  if (hasCapability(req.session.admin.role, capability)) return true;
+  res.redirect('/admin/dashboard');
+  return false;
+}
+
+function getRoleOptions() {
+  return ['admin', 'co_curator', 'editor', 'reviewer'];
+}
+
+function normalizeArchiveGrade(value) {
+  return ['standard', 'featured', 'dossier', 'honor'].includes(value) ? value : 'standard';
+}
+
+
 async function loadIssueOptions(db) {
   const [issues] = await db.execute('SELECT * FROM issues WHERE is_active = 1 ORDER BY is_current DESC, year DESC, id DESC');
   return issues;
+}
+
+async function loadAdminOptions(db) {
+  const [admins] = await db.execute("SELECT id, username, role, display_name, title FROM admins ORDER BY FIELD(role, 'admin', 'co_curator', 'editor', 'reviewer'), id ASC");
+  return admins;
 }
 
 module.exports = function (csrfCheck) {
@@ -61,7 +82,13 @@ module.exports = function (csrfCheck) {
     const { username, password } = req.body;
     const [rows] = await db.execute('SELECT * FROM admins WHERE username = ?', [username]);
     if (!rows.length || !bcrypt.compareSync(password, rows[0].password_hash)) return res.redirect('/admin/login?error=1');
-    req.session.admin = { id: rows[0].id, username: rows[0].username, role: rows[0].role || 'admin' };
+    req.session.admin = {
+      id: rows[0].id,
+      username: rows[0].username,
+      role: normalizeAdminRole(rows[0].role || 'admin'),
+      display_name: rows[0].display_name || rows[0].username,
+      title: rows[0].title || ''
+    };
     await logAction(db, req.session.admin, 'login', null, null, null);
     res.redirect('/admin/dashboard');
   }));
@@ -177,6 +204,7 @@ module.exports = function (csrfCheck) {
   router.get('/logs', requireAuth, wrap(async (req, res) => {
     const db = res.locals.db;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    if (!ensureCapability(req, res, 'view_logs')) return;
     const [[{ c: total }]] = await db.execute('SELECT COUNT(*) as c FROM operation_logs');
     const totalPages = Math.ceil(Number(total) / 20) || 1;
     const [logs] = await db.execute('SELECT * FROM operation_logs ORDER BY created_at DESC LIMIT 20 OFFSET ?', [(page - 1) * 20]);
@@ -185,13 +213,21 @@ module.exports = function (csrfCheck) {
 
   router.get('/issues', requireAuth, wrap(async (req, res) => {
     const db = res.locals.db;
-    const [issues] = await db.execute(`SELECT i.*, (SELECT COUNT(*) FROM manuscripts m WHERE m.issue_id = i.id) AS manuscript_count FROM issues i ORDER BY i.is_current DESC, i.year DESC, i.id DESC`);
-    res.render('admin/issues', { issues, stats: await getStats(db), admin: req.session.admin, msg: req.query.msg || null });
+    const [issues] = await db.execute(`SELECT i.*,
+      lead.username AS lead_username, lead.display_name AS lead_display_name, lead.title AS lead_title,
+      co.username AS co_username, co.display_name AS co_display_name, co.title AS co_title,
+      (SELECT COUNT(*) FROM manuscripts m WHERE m.issue_id = i.id) AS manuscript_count
+      FROM issues i
+      LEFT JOIN admins lead ON lead.id = i.lead_admin_id
+      LEFT JOIN admins co ON co.id = i.co_admin_id
+      ORDER BY i.is_current DESC, i.year DESC, i.id DESC`);
+    const adminOptions = await loadAdminOptions(db);
+    res.render('admin/issues', { issues, adminOptions, stats: await getStats(db), admin: req.session.admin, msg: req.query.msg || null });
   }));
 
   router.post('/issues', requireAuth, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    if (!ensureAdmin(req, res)) return;
+    if (!ensureCapability(req, res, 'manage_publication')) return;
     const issueCode = (req.body.issue_code || '').trim();
     const issueLabel = (req.body.issue_label || '').trim();
     const season = (req.body.season || '').trim();
@@ -199,17 +235,44 @@ module.exports = function (csrfCheck) {
     const themeTitle = (req.body.theme_title || '').trim();
     const themeNote = (req.body.theme_note || '').trim();
     const coverLabel = (req.body.cover_label || '').trim();
+    const leadAdminId = req.body.lead_admin_id ? Number(req.body.lead_admin_id) : null;
+    let coAdminId = req.body.co_admin_id ? Number(req.body.co_admin_id) : null;
+    const curatorStatement = (req.body.curator_statement || '').trim();
     const isCurrent = req.body.is_current ? 1 : 0;
+    if (coAdminId && leadAdminId && coAdminId === leadAdminId) coAdminId = null;
     if (!issueCode || !issueLabel) return res.redirect('/admin/issues?msg=invalid');
     if (isCurrent) await db.execute('UPDATE issues SET is_current = 0');
-    await db.execute('INSERT INTO issues (issue_code, issue_label, season, year, theme_title, theme_note, cover_label, is_current, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)', [issueCode, issueLabel, season, year, themeTitle, themeNote, coverLabel, isCurrent]);
+    await db.execute('INSERT INTO issues (issue_code, issue_label, season, year, theme_title, theme_note, cover_label, lead_admin_id, co_admin_id, curator_statement, is_current, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)', [issueCode, issueLabel, season, year, themeTitle, themeNote, coverLabel, leadAdminId, coAdminId, curatorStatement, isCurrent]);
     await logAction(db, req.session.admin, 'create_issue', 'issue', null, issueCode);
     res.redirect('/admin/issues?msg=created');
   }));
 
+  router.post('/issues/:id/update', requireAuth, csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    if (!ensureCapability(req, res, 'manage_publication')) return;
+    const issueCode = (req.body.issue_code || '').trim();
+    const issueLabel = (req.body.issue_label || '').trim();
+    const season = (req.body.season || '').trim();
+    const year = Number(req.body.year) || new Date().getFullYear();
+    const themeTitle = (req.body.theme_title || '').trim();
+    const themeNote = (req.body.theme_note || '').trim();
+    const coverLabel = (req.body.cover_label || '').trim();
+    const leadAdminId = req.body.lead_admin_id ? Number(req.body.lead_admin_id) : null;
+    let coAdminId = req.body.co_admin_id ? Number(req.body.co_admin_id) : null;
+    const curatorStatement = (req.body.curator_statement || '').trim();
+    const isCurrent = req.body.is_current ? 1 : 0;
+    const isActive = req.body.is_active ? 1 : 0;
+    if (coAdminId && leadAdminId && coAdminId === leadAdminId) coAdminId = null;
+    if (!issueCode || !issueLabel) return res.redirect('/admin/issues?msg=invalid');
+    if (isCurrent) await db.execute('UPDATE issues SET is_current = 0');
+    await db.execute('UPDATE issues SET issue_code = ?, issue_label = ?, season = ?, year = ?, theme_title = ?, theme_note = ?, cover_label = ?, lead_admin_id = ?, co_admin_id = ?, curator_statement = ?, is_current = ?, is_active = ? WHERE id = ?', [issueCode, issueLabel, season, year, themeTitle, themeNote, coverLabel, leadAdminId, coAdminId, curatorStatement, isCurrent, isActive, req.params.id]);
+    await logAction(db, req.session.admin, 'update_issue', 'issue', req.params.id, issueCode);
+    res.redirect('/admin/issues?msg=saved');
+  }));
+
   router.post('/issues/:id/current', requireAuth, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    if (!ensureAdmin(req, res)) return;
+    if (!ensureCapability(req, res, 'manage_publication')) return;
     await db.execute('UPDATE issues SET is_current = 0');
     await db.execute('UPDATE issues SET is_current = 1 WHERE id = ?', [req.params.id]);
     await logAction(db, req.session.admin, 'set_current_issue', 'issue', req.params.id, null);
@@ -218,24 +281,32 @@ module.exports = function (csrfCheck) {
 
   router.get('/announcements', requireAuth, wrap(async (req, res) => {
     const db = res.locals.db;
-    const [announcements] = await db.execute('SELECT * FROM announcements ORDER BY is_pinned DESC, priority DESC, created_at DESC');
+    if (!ensureCapability(req, res, 'manage_announcements')) return;
+    const [announcements] = await db.execute(`SELECT a.*,
+      creator.username AS creator_username, creator.display_name AS creator_display_name, creator.title AS creator_title
+      FROM announcements a
+      LEFT JOIN admins creator ON creator.id = a.created_by
+      ORDER BY a.is_pinned DESC, a.priority DESC, a.created_at DESC`);
     res.render('admin/announcements', { announcements, stats: await getStats(db), admin: req.session.admin, msg: req.query.msg || null });
   }));
 
   router.get('/announcements/new', requireAuth, wrap(async (req, res) => {
+    if (!ensureCapability(req, res, 'manage_announcements')) return;
     res.render('admin/announcement-detail', { announcement: null, stats: await getStats(res.locals.db), admin: req.session.admin, msg: null });
   }));
 
   router.get('/announcements/:id', requireAuth, wrap(async (req, res) => {
     const db = res.locals.db;
-    const [rows] = await db.execute('SELECT * FROM announcements WHERE id = ?', [req.params.id]);
+    if (!ensureCapability(req, res, 'manage_announcements')) return;
+    const [rows] = await db.execute(`SELECT a.*, creator.username AS creator_username, creator.display_name AS creator_display_name, creator.title AS creator_title
+      FROM announcements a LEFT JOIN admins creator ON creator.id = a.created_by WHERE a.id = ?`, [req.params.id]);
     if (!rows.length) return res.redirect('/admin/announcements');
     res.render('admin/announcement-detail', { announcement: rows[0], stats: await getStats(db), admin: req.session.admin, msg: req.query.msg || null });
   }));
 
   router.post('/announcements/save', requireAuth, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    if (!ensureAdmin(req, res)) return;
+    if (!ensureCapability(req, res, 'manage_announcements')) return;
     const payload = {
       id: req.body.id || '',
       title: (req.body.title || '').trim(),
@@ -247,6 +318,8 @@ module.exports = function (csrfCheck) {
       priority: Number(req.body.priority) || 0,
       cta_text: (req.body.cta_text || '').trim(),
       cta_link: (req.body.cta_link || '').trim(),
+      signature_name: (req.body.signature_name || '').trim(),
+      signature_title: (req.body.signature_title || '').trim(),
       start_at: req.body.start_at || null,
       end_at: req.body.end_at || null,
       is_active: req.body.is_active ? 1 : 0,
@@ -259,19 +332,19 @@ module.exports = function (csrfCheck) {
     if (!payload.title || !payload.content) return res.redirect('/admin/announcements?msg=invalid');
 
     if (payload.id) {
-      await db.execute(`UPDATE announcements SET title = ?, subtitle = ?, content = ?, type = ?, audience = ?, theme = ?, priority = ?, cta_text = ?, cta_link = ?, start_at = ?, end_at = ?, is_active = ?, is_pinned = ?, is_rotating = ?, show_on_home = ?, show_on_dashboard = ?, show_on_article = ? WHERE id = ?`, [payload.title, payload.subtitle, payload.content, payload.type, payload.audience, payload.theme, payload.priority, payload.cta_text, payload.cta_link, payload.start_at, payload.end_at, payload.is_active, payload.is_pinned, payload.is_rotating, payload.show_on_home, payload.show_on_dashboard, payload.show_on_article, payload.id]);
+      await db.execute(`UPDATE announcements SET title = ?, subtitle = ?, content = ?, type = ?, audience = ?, theme = ?, priority = ?, cta_text = ?, cta_link = ?, signature_name = ?, signature_title = ?, start_at = ?, end_at = ?, is_active = ?, is_pinned = ?, is_rotating = ?, show_on_home = ?, show_on_dashboard = ?, show_on_article = ? WHERE id = ?`, [payload.title, payload.subtitle, payload.content, payload.type, payload.audience, payload.theme, payload.priority, payload.cta_text, payload.cta_link, payload.signature_name, payload.signature_title, payload.start_at, payload.end_at, payload.is_active, payload.is_pinned, payload.is_rotating, payload.show_on_home, payload.show_on_dashboard, payload.show_on_article, payload.id]);
       await logAction(db, req.session.admin, 'update_announcement', 'announcement', payload.id, payload.title);
       return res.redirect(`/admin/announcements/${payload.id}?msg=saved`);
     }
 
-    const [result] = await db.execute(`INSERT INTO announcements (title, subtitle, content, type, audience, theme, priority, cta_text, cta_link, start_at, end_at, is_active, is_pinned, is_rotating, show_on_home, show_on_dashboard, show_on_article, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [payload.title, payload.subtitle, payload.content, payload.type, payload.audience, payload.theme, payload.priority, payload.cta_text, payload.cta_link, payload.start_at, payload.end_at, payload.is_active, payload.is_pinned, payload.is_rotating, payload.show_on_home, payload.show_on_dashboard, payload.show_on_article, req.session.admin.id]);
+    const [result] = await db.execute(`INSERT INTO announcements (title, subtitle, content, type, audience, theme, priority, cta_text, cta_link, signature_name, signature_title, start_at, end_at, is_active, is_pinned, is_rotating, show_on_home, show_on_dashboard, show_on_article, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [payload.title, payload.subtitle, payload.content, payload.type, payload.audience, payload.theme, payload.priority, payload.cta_text, payload.cta_link, payload.signature_name, payload.signature_title, payload.start_at, payload.end_at, payload.is_active, payload.is_pinned, payload.is_rotating, payload.show_on_home, payload.show_on_dashboard, payload.show_on_article, req.session.admin.id]);
     await logAction(db, req.session.admin, 'create_announcement', 'announcement', result.insertId, payload.title);
     res.redirect(`/admin/announcements/${result.insertId}?msg=created`);
   }));
 
   router.post('/announcements/:id/delete', requireAuth, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    if (!ensureAdmin(req, res)) return;
+    if (!ensureCapability(req, res, 'manage_announcements')) return;
     await db.execute('UPDATE announcements SET is_active = 0 WHERE id = ?', [req.params.id]);
     await logAction(db, req.session.admin, 'deactivate_announcement', 'announcement', req.params.id, null);
     res.redirect('/admin/announcements?msg=deleted');
@@ -279,7 +352,14 @@ module.exports = function (csrfCheck) {
 
   router.get('/manuscripts/:id', requireAuth, wrap(async (req, res) => {
     const db = res.locals.db;
-    const [rows] = await db.execute(`SELECT m.*, i.issue_label, i.issue_code, i.season, i.year, i.theme_title FROM manuscripts m LEFT JOIN issues i ON i.id = m.issue_id WHERE m.id = ?`, [req.params.id]);
+    const [rows] = await db.execute(`SELECT m.*, i.issue_label, i.issue_code, i.season, i.year, i.theme_title,
+      curator.username AS curator_username, curator.display_name AS curator_display_name, curator.title AS curator_title,
+      assignee.username AS assignee_username, assignee.display_name AS assignee_display_name, assignee.title AS assignee_title
+      FROM manuscripts m
+      LEFT JOIN issues i ON i.id = m.issue_id
+      LEFT JOIN admins curator ON curator.id = m.curator_admin_id
+      LEFT JOIN admins assignee ON assignee.id = m.assigned_admin_id
+      WHERE m.id = ?`, [req.params.id]);
     if (!rows.length) return res.redirect('/admin/manuscripts');
     const ms = rows[0];
 
@@ -292,6 +372,7 @@ module.exports = function (csrfCheck) {
     const [logs] = await db.execute('SELECT * FROM operation_logs WHERE target_type = ? AND target_id = ? ORDER BY created_at DESC LIMIT 20', ['manuscript', req.params.id]);
     const [versions] = await db.execute('SELECT * FROM article_versions WHERE manuscript_id = ? ORDER BY created_at DESC LIMIT 20', [req.params.id]);
     const issues = await loadIssueOptions(db);
+    const adminOptions = await loadAdminOptions(db);
 
     res.render('admin/detail', {
       ms,
@@ -302,6 +383,7 @@ module.exports = function (csrfCheck) {
       owner,
       versions,
       issues,
+      adminOptions,
       msg: req.query.msg || null,
       admin: req.session.admin,
     });
@@ -309,9 +391,9 @@ module.exports = function (csrfCheck) {
 
   router.post('/manuscripts/:id', requireAuth, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    const { risk_level, desensitized_status, editor_note, is_featured, is_pinned, is_editor_pick, is_trending, tags } = req.body;
-    await db.execute(`UPDATE manuscripts SET risk_level = ?, desensitized_status = ?, editor_note = ?, is_featured = ?, is_pinned = ?, is_editor_pick = ?, is_trending = ?, tags = ? WHERE id = ?`, [risk_level || 'low', desensitized_status || 'unchecked', editor_note || '', is_featured ? 1 : 0, is_pinned ? 1 : 0, is_editor_pick ? 1 : 0, is_trending ? 1 : 0, (tags || '').trim(), req.params.id]);
-    await logAction(db, req.session.admin, 'update_metadata', 'manuscript', req.params.id, `risk=${risk_level}, desensitized=${desensitized_status}`);
+    const { risk_level, desensitized_status, editor_note, is_featured, is_pinned, is_editor_pick, is_trending, tags, archive_code, archive_grade, curator_note, curator_admin_id, assigned_admin_id, internal_note } = req.body;
+    await db.execute(`UPDATE manuscripts SET risk_level = ?, desensitized_status = ?, editor_note = ?, is_featured = ?, is_pinned = ?, is_editor_pick = ?, is_trending = ?, tags = ?, archive_code = ?, archive_grade = ?, curator_note = ?, curator_admin_id = ?, assigned_admin_id = ?, internal_note = ? WHERE id = ?`, [risk_level || 'low', desensitized_status || 'unchecked', editor_note || '', is_featured ? 1 : 0, is_pinned ? 1 : 0, is_editor_pick ? 1 : 0, is_trending ? 1 : 0, (tags || '').trim(), (archive_code || '').trim(), normalizeArchiveGrade(archive_grade), (curator_note || '').trim(), curator_admin_id ? Number(curator_admin_id) : null, assigned_admin_id ? Number(assigned_admin_id) : null, (internal_note || '').trim(), req.params.id]);
+    await logAction(db, req.session.admin, 'update_metadata', 'manuscript', req.params.id, `risk=${risk_level}, grade=${normalizeArchiveGrade(archive_grade)}`);
     res.redirect(`/admin/manuscripts/${req.params.id}?msg=saved`);
   }));
 
@@ -356,9 +438,11 @@ module.exports = function (csrfCheck) {
       layout_style: (req.body.layout_style || 'journal').trim(),
       issue_id: req.body.issue_id ? Number(req.body.issue_id) : null,
       pdf_enabled: req.body.pdf_enabled ? 1 : 0,
+      archive_code: (req.body.archive_code || '').trim(),
+      archive_grade: normalizeArchiveGrade(req.body.archive_grade),
       published_content: (req.body.published_content || '').trim(),
     };
-    await db.execute(`UPDATE manuscripts SET display_title = ?, deck = ?, excerpt = ?, publication_label = ?, layout_style = ?, issue_id = ?, pdf_enabled = ?, published_content = ? WHERE id = ?`, [payload.display_title || null, payload.deck, payload.excerpt, payload.publication_label, payload.layout_style || 'journal', payload.issue_id, payload.pdf_enabled, payload.published_content || null, req.params.id]);
+    await db.execute(`UPDATE manuscripts SET display_title = ?, deck = ?, excerpt = ?, publication_label = ?, layout_style = ?, issue_id = ?, pdf_enabled = ?, archive_code = ?, archive_grade = ?, published_content = ? WHERE id = ?`, [payload.display_title || null, payload.deck, payload.excerpt, payload.publication_label, payload.layout_style || 'journal', payload.issue_id, payload.pdf_enabled, payload.archive_code, payload.archive_grade, payload.published_content || null, req.params.id]);
     await logAction(db, req.session.admin, 'update_publication_layout', 'manuscript', req.params.id, `issue=${payload.issue_id || 'none'}`);
     res.redirect(`/admin/manuscripts/${req.params.id}?msg=publication_saved`);
   }));
@@ -382,6 +466,7 @@ module.exports = function (csrfCheck) {
 
   router.get('/users', requireAuth, wrap(async (req, res) => {
     const db = res.locals.db;
+    if (!ensureCapability(req, res, 'view_members')) return;
     const { tier, state, q } = req.query;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     let countSql = 'SELECT COUNT(*) AS c FROM users WHERE 1 = 1';
@@ -406,6 +491,7 @@ module.exports = function (csrfCheck) {
 
   router.get('/users/:id', requireAuth, wrap(async (req, res) => {
     const db = res.locals.db;
+    if (!ensureCapability(req, res, 'view_members')) return;
     const [rows] = await db.execute('SELECT id, email, display_name, member_tier, bio, is_active, created_at, last_login_at FROM users WHERE id = ?', [req.params.id]);
     if (!rows.length) return res.redirect('/admin/users');
     const [submissions] = await db.execute(`SELECT id, submission_no, title, section, status, created_at, updated_at FROM manuscripts WHERE user_id = ? ORDER BY created_at DESC LIMIT 20`, [req.params.id]);
@@ -417,7 +503,7 @@ module.exports = function (csrfCheck) {
 
   router.post('/users/:id/tier', requireAuth, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    if (!ensureAdmin(req, res)) return;
+    if (!ensureCapability(req, res, 'manage_member_state')) return;
     const memberTier = ['member', 'supporter', 'contributor', 'editorial'].includes(req.body.member_tier) ? req.body.member_tier : 'member';
     await db.execute('UPDATE users SET member_tier = ? WHERE id = ?', [memberTier, req.params.id]);
     await logAction(db, req.session.admin, 'grant_member_tier', 'user', req.params.id, `tier=${memberTier}`);
@@ -427,7 +513,7 @@ module.exports = function (csrfCheck) {
 
   router.post('/users/:id/status', requireAuth, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    if (!ensureAdmin(req, res)) return;
+    if (!ensureCapability(req, res, 'manage_member_state')) return;
     const isActive = req.body.is_active === '1' ? 1 : 0;
     await db.execute('UPDATE users SET is_active = ? WHERE id = ?', [isActive, req.params.id]);
     await logAction(db, req.session.admin, isActive ? 'reactivate_user' : 'deactivate_user', 'user', req.params.id, null);
@@ -437,6 +523,7 @@ module.exports = function (csrfCheck) {
 
   router.get('/member-applications', requireAuth, wrap(async (req, res) => {
     const db = res.locals.db;
+    if (!ensureCapability(req, res, 'review_members')) return;
     const status = req.query.status || '';
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     let countSql = 'SELECT COUNT(*) AS c FROM member_applications a WHERE 1 = 1';
@@ -452,7 +539,7 @@ module.exports = function (csrfCheck) {
 
   router.post('/member-applications/:id/review', requireAuth, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    if (!ensureAdmin(req, res)) return;
+    if (!ensureCapability(req, res, 'review_members')) return;
     const action = req.body.action === 'approve' ? 'approve' : 'reject';
     const adminNote = (req.body.admin_note || '').trim().substring(0, 2000);
     const [rows] = await db.execute('SELECT * FROM member_applications WHERE id = ?', [req.params.id]);
@@ -473,28 +560,49 @@ module.exports = function (csrfCheck) {
 
   router.get('/admins', requireAuth, wrap(async (req, res) => {
     const db = res.locals.db;
-    if (!ensureAdmin(req, res)) return;
-    const [admins] = await db.execute('SELECT id, username, role, created_at FROM admins ORDER BY id ASC');
+    if (!ensureFounder(req, res)) return;
+    const [admins] = await db.execute("SELECT id, username, role, display_name, title, badge_label, bio, public_slug, is_public, created_at FROM admins ORDER BY FIELD(role, 'admin', 'co_curator', 'editor', 'reviewer'), id ASC");
     res.render('admin/admins', { admins, stats: await getStats(db), msg: req.query.msg || null, admin: req.session.admin });
   }));
 
   router.post('/admins/add', requireAuth, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    if (!ensureAdmin(req, res)) return;
-    const { username, password, role } = req.body;
+    if (!ensureFounder(req, res)) return;
+    const { username, password, role, display_name, title, badge_label, public_slug } = req.body;
     if (!username || !password || password.length < 6) return res.redirect('/admin/admins?msg=invalid');
     const [existing] = await db.execute('SELECT id FROM admins WHERE username = ?', [username]);
     if (existing.length > 0) return res.redirect('/admin/admins?msg=exists');
     const hash = bcrypt.hashSync(password, 10);
-    const validRole = ['admin', 'editor', 'reviewer'].includes(role) ? role : 'editor';
-    await db.execute('INSERT INTO admins (username, password_hash, role) VALUES (?,?,?)', [username, hash, validRole]);
+    const validRole = getRoleOptions().includes(role) ? role : 'editor';
+    const safeDisplayName = (display_name || username).trim().substring(0, 80);
+    const safeTitle = (title || getAdminRoleLabel(validRole)).trim().substring(0, 120);
+    const safeBadgeLabel = (badge_label || getAdminRoleLabel(validRole)).trim().substring(0, 40);
+    const safeSlug = (public_slug || username).trim().substring(0, 80);
+    await db.execute('INSERT INTO admins (username, password_hash, role, display_name, title, badge_label, public_slug, is_public) VALUES (?,?,?,?,?,?,?,?)', [username.trim(), hash, validRole, safeDisplayName, safeTitle, safeBadgeLabel, safeSlug, req.body.is_public ? 1 : 0]);
     await logAction(db, req.session.admin, 'add_admin', 'admin', null, `username=${username}, role=${validRole}`);
     res.redirect('/admin/admins?msg=added');
   }));
 
+  router.post('/admins/:id/profile', requireAuth, csrfCheck, wrap(async (req, res) => {
+    const db = res.locals.db;
+    if (!ensureFounder(req, res)) return;
+    const role = getRoleOptions().includes(req.body.role) ? req.body.role : 'editor';
+    const payload = {
+      display_name: (req.body.display_name || '').trim().substring(0, 80),
+      title: (req.body.title || '').trim().substring(0, 120),
+      badge_label: (req.body.badge_label || '').trim().substring(0, 40),
+      bio: (req.body.bio || '').trim().substring(0, 500),
+      public_slug: (req.body.public_slug || '').trim().substring(0, 80),
+      is_public: req.body.is_public ? 1 : 0,
+    };
+    await db.execute('UPDATE admins SET role = ?, display_name = ?, title = ?, badge_label = ?, bio = ?, public_slug = ?, is_public = ? WHERE id = ?', [role, payload.display_name, payload.title, payload.badge_label, payload.bio, payload.public_slug, payload.is_public, req.params.id]);
+    await logAction(db, req.session.admin, 'update_admin_profile', 'admin', req.params.id, `role=${role}`);
+    res.redirect('/admin/admins?msg=profile_saved');
+  }));
+
   router.post('/admins/:id/delete', requireAuth, csrfCheck, wrap(async (req, res) => {
     const db = res.locals.db;
-    if (!ensureAdmin(req, res)) return;
+    if (!ensureFounder(req, res)) return;
     if (parseInt(req.params.id, 10) === req.session.admin.id) return res.redirect('/admin/admins?msg=self');
     await db.execute('DELETE FROM admins WHERE id = ?', [req.params.id]);
     await logAction(db, req.session.admin, 'delete_admin', 'admin', req.params.id, null);

@@ -1,5 +1,9 @@
 ﻿<%- include('partials/head', { pageTitle: `${article.renderedTitle} / 馆藏版`, pageDesc: article.renderedExcerpt, ogType: 'article' }) %>
 <%- include('partials/nav') %>
+<%
+  const printLeadName = article.issue_lead_display_name || article.issue_lead_username || '';
+  const printCoName = article.issue_co_display_name || article.issue_co_username || '';
+%>
 <main class="print-issue-page">
   <div class="print-sheet">
     <header class="print-sheet__head">
@@ -25,6 +29,12 @@
         <span>作者：<%= article.author_mode === 'anonymous' ? '匿名' : (article.pen_name || '匿名') %></span>
         <span>刊载时间：<%= article.published_at ? String(article.published_at).substring(0, 10) : String(article.created_at).substring(0, 10) %></span>
       </div>
+      <% if (printLeadName || printCoName) { %>
+      <div class="print-sheet__curators">
+        <% if (printLeadName) { %><span>主策展：<%= printLeadName %></span><% } %>
+        <% if (printCoName) { %><span>联合策展：<%= printCoName %></span><% } %>
+      </div>
+      <% } %>
     </section>
 
     <section class="print-sheet__body article-body article-body--print">
@@ -42,6 +52,7 @@
       <div>
         <strong><%= article.issue_label || 'ISSUE 001' %></strong>
         <% if (article.theme_title) { %><span> · <%= article.theme_title %></span><% } %>
+        <% if (article.curator_statement) { %><div class="print-sheet__statement"><%= article.curator_statement %></div><% } %>
       </div>
       <div class="print-sheet__foot-actions no-print">
         <a href="/article/<%= article.id %>" class="home-outline-btn">返回阅读页</a>

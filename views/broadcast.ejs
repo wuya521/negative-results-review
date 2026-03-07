@@ -2,16 +2,26 @@
 <%- include('partials/nav') %>
 <header class="page-header page-header--compact">
   <div class="container narrow-container">
-    <p class="page-header__label">Broadcast Detail</p>
+    <p class="page-header__label">Broadcast Detail / 档案馆广播</p>
     <h1 class="page-header__title"><%= broadcast.title %></h1>
     <p class="page-header__sub"><%= broadcast.subtitle || broadcast.type %></p>
   </div>
 </header>
 <main class="section">
   <div class="container narrow-container">
-    <article class="auth-card fade-in">
-      <div class="broadcast-archive-card__meta"><span><%= broadcast.type %></span><span><%= broadcast.audience %></span></div>
+    <article class="auth-card fade-in broadcast-detail-card">
+      <div class="broadcast-archive-card__meta">
+        <span><%= broadcast.type %></span>
+        <span><%= broadcast.audience %></span>
+      </div>
       <div class="article-body article-body--longform"><p><%= broadcast.content %></p></div>
+      <% if (broadcast.signature_name || broadcast.signature_title) { %>
+      <div class="curator-signature curator-signature--broadcast">
+        <span class="curator-signature__label">馆方署名</span>
+        <strong><%= broadcast.signature_name || '馆务署名' %></strong>
+        <% if (broadcast.signature_title) { %><span><%= broadcast.signature_title %></span><% } %>
+      </div>
+      <% } %>
       <div class="broadcast-archive-card__footer" style="margin-top:1rem">
         <span><%= broadcast.created_at ? String(broadcast.created_at).substring(0, 16).replace('T', ' ') : '' %></span>
         <% if (broadcast.cta_link) { %><a href="/broadcasts/<%= broadcast.id %>/go"><%= broadcast.cta_text || '前往相关页面' %></a><% } %>

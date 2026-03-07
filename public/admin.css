@@ -1,5 +1,5 @@
-/* ============================================================
-   ADMIN — 编辑部工作台
+﻿/* ============================================================
+   ADMIN 鈥?缂栬緫閮ㄥ伐浣滃彴
    ============================================================ */
 :root{
   --bg:#FAFAF8;--bg-alt:#F3F2F0;--bg-dark:#1C1C1C;
@@ -636,3 +636,79 @@ button,input,textarea,select{font-family:inherit;font-size:inherit;color:inherit
   align-items: flex-end;
   gap: .5rem;
 }
+
+/* ===== V1.4 Curator Collaboration ===== */
+.admin-profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-profile-card__head,
+.admin-profile-card__actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.admin-profile-card__actions {
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .admin-profile-card__head,
+  .admin-profile-card__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+
+/* V1.5 Issue Collaboration */
+.issue-admin-grid {
+  align-items: start;
+}
+
+.issue-record-stack {
+  gap: 1rem;
+}
+
+.issue-record-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.issue-record-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.issue-record-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  font-size: 0.8rem;
+  color: var(--text-sec);
+}
+
+.issue-record-form {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.issue-record-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+@media (max-width: 720px) {
+  .issue-record-head {
+    flex-direction: column;
+  }
+}
+

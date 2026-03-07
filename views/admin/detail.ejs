@@ -7,7 +7,7 @@
     <div class="topbar-left">
       <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
       <span class="topbar-issue"><%= ms.issue_label || 'ISSUE / DRAFT' %></span>
-      <span class="topbar-status"><span class="dot"></span>稿件排版工作台</span>
+      <span class="topbar-status"><span class="dot"></span>馆务工作台</span>
     </div>
     <div class="topbar-right">
       <div class="topbar-stat"><div class="num"><%= ms.view_count || 0 %></div><div class="label">阅读</div></div>
@@ -19,7 +19,13 @@
   <div class="content">
     <a href="/admin/manuscripts" class="detail-back">← 返回稿件列表</a>
 
-    <div class="detail-card">
+    <% if (msg) { %>
+    <div class="detail-card" style="margin-bottom:1rem;font-size:.82rem;color:var(--text-sec)">
+      <%= ({ saved:'审核信息已保存。', content_saved:'原稿内容已更新。', content_empty:'标题和正文不能为空。', optimized:'已生成整理稿。', no_optimized:'当前没有可应用的整理稿。', published_copy_saved:'整理稿已写入发布稿。', publication_saved:'馆藏版设置已保存。', invalid:'无效操作。' })[msg] || ({ status_pending:'状态已重置为待审。', status_under_review:'稿件已进入审核中。', status_revision:'稿件已退修。', status_accepted:'稿件已录用。', status_rejected:'稿件已拒稿。', status_published:'稿件已正式入馆。', status_archived:'稿件已归档。' })[msg] || msg %>
+    </div>
+    <% } %>
+
+    <section class="detail-card" style="margin-bottom:1.5rem">
       <h1 class="detail-title"><%= ms.display_title || ms.title %></h1>
       <div class="detail-badges">
         <span class="badge badge-<%= ms.status %>"><%= statusLabel(ms.status) %></span>
@@ -29,31 +35,23 @@
         <% if (ms.is_trending) { %><span class="tag-badge tag-trending">加热中</span><% } %>
         <% if (ms.is_featured) { %><span class="tag-badge tag-featured">精选</span><% } %>
       </div>
-
       <div class="detail-meta">
-        <div class="meta-item"><div class="ml">Archive ID</div><div class="mv mono"><%= ms.submission_no %></div></div>
+        <div class="meta-item"><div class="ml">Submission</div><div class="mv mono"><%= ms.submission_no %></div></div>
+        <div class="meta-item"><div class="ml">馆藏编号</div><div class="mv mono"><%= ms.archive_code || '未设定' %></div></div>
+        <div class="meta-item"><div class="ml">馆藏级别</div><div class="mv"><%= getArchiveGradeMeta(ms.archive_grade).label %></div></div>
         <div class="meta-item"><div class="ml">学科方向</div><div class="mv"><%= ms.discipline %></div></div>
         <div class="meta-item"><div class="ml">刊标</div><div class="mv"><%= ms.publication_label || '未设置' %></div></div>
-        <div class="meta-item"><div class="ml">期号</div><div class="mv"><%= ms.issue_label || '未绑定期号' %></div></div>
-        <div class="meta-item"><div class="ml">署名方式</div><div class="mv"><%= ({anonymous:'匿名',pen_name:'笔名',real_name:'实名'})[ms.author_mode] %><%= ms.pen_name ? ' (' + ms.pen_name + ')' : '' %></div></div>
-        <div class="meta-item"><div class="ml">风险等级</div><div class="mv"><span class="risk-dot <%= ms.risk_level %>"></span><%= riskLabel(ms.risk_level) %> 风险</div></div>
+        <div class="meta-item"><div class="ml">当前策展署名</div><div class="mv"><%= ms.curator_display_name || ms.curator_username || '未指定' %></div></div>
+        <div class="meta-item"><div class="ml">当前负责人</div><div class="mv"><%= ms.assignee_display_name || ms.assignee_username || '未指定' %></div></div>
         <div class="meta-item"><div class="ml">创建时间</div><div class="mv mono"><%= ms.created_at %></div></div>
-        <div class="meta-item"><div class="ml">更新时间</div><div class="mv mono"><%= ms.updated_at %></div></div>
       </div>
-
       <% if (owner) { %>
       <div style="margin-top:1rem;padding:1rem 1.1rem;border:1px solid var(--border);background:var(--bg-alt);font-size:.8rem;line-height:1.8;color:var(--text-sec)">
-        该稿件已绑定会员：<strong><%= owner.display_name %></strong> · <span class="mono"><%= owner.email %></span><br>
+        绑定会员：<strong><%= owner.display_name %></strong> · <span class="mono"><%= owner.email %></span><br>
         会员等级：<strong><%= owner.member_tier %></strong> · 账号状态：<strong><%= owner.is_active ? '启用' : '停用' %></strong>
       </div>
       <% } %>
-
-      <% if (typeof msg !== 'undefined' && msg) { %>
-      <div style="margin-top:1rem;padding:.9rem 1rem;border:1px solid var(--border);background:var(--bg-alt);font-size:.8rem;color:var(--text-sec)">
-        <%= ({ saved:'审核信息已保存。', content_saved:'原稿内容已更新。', content_empty:'标题和正文不能为空。', optimized:'已生成整理稿。', no_optimized:'当前没有可应用的整理稿。', published_copy_saved:'整理稿已写入发布稿。', publication_saved:'馆藏版设置已保存。', invalid:'无效操作。' })[msg] || ({ status_pending:'状态已重置为待审。', status_under_review:'稿件已进入审核中。', status_revision:'稿件已退修。', status_accepted:'稿件已录用。', status_rejected:'稿件已拒稿。', status_published:'稿件已正式入馆。', status_archived:'稿件已归档。' })[msg] || msg %>
-      </div>
-      <% } %>
-    </div>
+    </section>
 
     <div class="member-admin-actions-grid">
       <section class="edit-card member-admin-inline-card">
@@ -68,7 +66,7 @@
 
       <section class="edit-card member-admin-inline-card">
         <h3>排版工作台</h3>
-        <p class="member-admin-status-text">这一步会保留原稿，只生成“整理稿”和“发布稿”。整理稿适合长文阅读，发布稿用于前台馆藏页。</p>
+        <p class="member-admin-status-text">保留原稿，生成整理稿，再决定是否写入发布稿。适合你和联合馆长分工处理。</p>
         <form method="POST" action="/admin/manuscripts/<%= ms.id %>/optimize" style="margin-bottom:1rem">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="act-btn blue">一键整理为馆藏排版</button>
@@ -77,21 +75,28 @@
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <button type="submit" class="act-btn green">将整理稿写入发布稿</button>
         </form>
-        <div class="member-form-stack">
-          <label class="member-form-field"><span>整理稿预览</span><textarea rows="16" readonly><%= ms.optimized_content || '尚未生成整理稿。' %></textarea></label>
-        </div>
+        <label class="member-form-field"><span>整理稿预览</span><textarea rows="16" readonly><%= ms.optimized_content || '尚未生成整理稿。' %></textarea></label>
       </section>
     </div>
 
-    <form method="POST" action="/admin/manuscripts/<%= ms.id %>/publication" class="edit-card">
+    <form method="POST" action="/admin/manuscripts/<%= ms.id %>/publication" class="edit-card" style="margin-top:1.5rem">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
       <h3>馆藏版 / 期刊版设置</h3>
       <div class="edit-grid">
-        <label class="member-form-field"><span>显示标题</span><input type="text" name="display_title" value="<%= ms.display_title || '' %>" placeholder="发布时显示的标题"></label>
-        <label class="member-form-field"><span>刊标文字</span><input type="text" name="publication_label" value="<%= ms.publication_label || '' %>" placeholder="ISSUE 001 / SPRING 2026"></label>
+        <label class="member-form-field"><span>显示标题</span><input type="text" name="display_title" value="<%= ms.display_title || '' %>"></label>
+        <label class="member-form-field"><span>刊标文字</span><input type="text" name="publication_label" value="<%= ms.publication_label || '' %>"></label>
+        <label class="member-form-field"><span>馆藏编号</span><input type="text" name="archive_code" value="<%= ms.archive_code || '' %>" placeholder="ISSUE-001-A014"></label>
       </div>
       <div class="edit-grid">
         <label class="member-form-field"><span>导语 / Deck</span><input type="text" name="deck" value="<%= ms.deck || '' %>"></label>
+        <label class="member-form-field"><span>馆藏级别</span>
+          <select name="archive_grade">
+            <option value="standard" <%= (ms.archive_grade || 'standard') === 'standard' ? 'selected' : '' %>>正式馆藏</option>
+            <option value="featured" <%= ms.archive_grade === 'featured' ? 'selected' : '' %>>策展精选</option>
+            <option value="dossier" <%= ms.archive_grade === 'dossier' ? 'selected' : '' %>>专题卷宗</option>
+            <option value="honor" <%= ms.archive_grade === 'honor' ? 'selected' : '' %>>荣誉入藏</option>
+          </select>
+        </label>
         <label class="member-form-field"><span>期号归属</span>
           <select name="issue_id">
             <option value="">不绑定期号</option>
@@ -116,9 +121,9 @@
       <button type="submit" class="btn-save">保存馆藏版设置</button>
     </form>
 
-    <form method="POST" action="/admin/manuscripts/<%= ms.id %>" class="edit-card">
+    <form method="POST" action="/admin/manuscripts/<%= ms.id %>" class="edit-card" style="margin-top:1.5rem">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-      <h3>审核信息与标签</h3>
+      <h3>审核信息与协作分工</h3>
       <div class="edit-grid">
         <label class="member-form-field"><span>风险等级</span>
           <select name="risk_level">
@@ -134,19 +139,50 @@
             <option value="failed" <%= ms.desensitized_status==='failed'?'selected':'' %>>未通过</option>
           </select>
         </label>
+        <label class="member-form-field"><span>策展署名</span>
+          <select name="curator_admin_id">
+            <option value="">未指定</option>
+            <% adminOptions.forEach(function(option) { %>
+            <option value="<%= option.id %>" <%= String(ms.curator_admin_id || '') === String(option.id) ? 'selected' : '' %>><%= option.display_name || option.username %> · <%= getAdminRoleLabel(option.role) %></option>
+            <% }) %>
+          </select>
+        </label>
       </div>
-      <label class="member-form-field"><span>标签</span><input type="text" name="tags" value="<%= ms.tags || '' %>" placeholder="逗号分隔"></label>
+      <div class="edit-grid">
+        <label class="member-form-field"><span>当前负责人</span>
+          <select name="assigned_admin_id">
+            <option value="">未指定</option>
+            <% adminOptions.forEach(function(option) { %>
+            <option value="<%= option.id %>" <%= String(ms.assigned_admin_id || '') === String(option.id) ? 'selected' : '' %>><%= option.display_name || option.username %> · <%= getAdminRoleLabel(option.role) %></option>
+            <% }) %>
+          </select>
+        </label>
+        <label class="member-form-field"><span>标签</span><input type="text" name="tags" value="<%= ms.tags || '' %>" placeholder="逗号分隔"></label>
+        <label class="member-form-field"><span>馆藏编号（同步）</span><input type="text" name="archive_code" value="<%= ms.archive_code || '' %>"></label>
+      </div>
+      <div class="edit-grid">
+        <label class="member-form-field"><span>馆藏级别</span>
+          <select name="archive_grade">
+            <option value="standard" <%= (ms.archive_grade || 'standard') === 'standard' ? 'selected' : '' %>>正式馆藏</option>
+            <option value="featured" <%= ms.archive_grade === 'featured' ? 'selected' : '' %>>策展精选</option>
+            <option value="dossier" <%= ms.archive_grade === 'dossier' ? 'selected' : '' %>>专题卷宗</option>
+            <option value="honor" <%= ms.archive_grade === 'honor' ? 'selected' : '' %>>荣誉入藏</option>
+          </select>
+        </label>
+      </div>
       <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin:1rem 0">
         <label class="edit-check"><input type="checkbox" name="is_featured" value="1" <%= ms.is_featured?'checked':'' %>> 精选</label>
         <label class="edit-check"><input type="checkbox" name="is_pinned" value="1" <%= ms.is_pinned?'checked':'' %>> 置顶</label>
         <label class="edit-check"><input type="checkbox" name="is_editor_pick" value="1" <%= ms.is_editor_pick?'checked':'' %>> 编辑推荐</label>
         <label class="edit-check"><input type="checkbox" name="is_trending" value="1" <%= ms.is_trending?'checked':'' %>> 加热中</label>
       </div>
-      <label class="member-form-field"><span>编辑备注</span><textarea name="editor_note" rows="6"><%= ms.editor_note || '' %></textarea></label>
-      <button type="submit" class="btn-save">保存审核信息</button>
+      <label class="member-form-field"><span>馆方存档意见</span><textarea name="curator_note" rows="5"><%= ms.curator_note || '' %></textarea></label>
+      <label class="member-form-field"><span>编辑备注</span><textarea name="editor_note" rows="5"><%= ms.editor_note || '' %></textarea></label>
+      <label class="member-form-field"><span>内部协作备注</span><textarea name="internal_note" rows="5"><%= ms.internal_note || '' %></textarea></label>
+      <button type="submit" class="btn-save">保存审核与协作信息</button>
     </form>
 
-    <div class="status-card">
+    <section class="status-card" style="margin-top:1.5rem">
       <h3>状态流转</h3>
       <p>当前状态：<strong><%= statusLabel(ms.status) %></strong></p>
       <div class="status-actions">
@@ -174,7 +210,7 @@
         </form>
         <% }) %>
       </div>
-    </div>
+    </section>
 
     <div class="member-admin-split" style="margin-top:1.5rem">
       <section class="detail-card">
@@ -223,4 +259,3 @@ if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mo
 if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
 </script>
 </body></html>
-

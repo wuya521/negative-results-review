@@ -1,4 +1,4 @@
-﻿<%- include('partials/head', { pageTitle: announcement ? '编辑播报公告' : '新建播报公告' }) %>
+﻿<%- include('partials/head', { pageTitle: announcement ? '编辑广播公告' : '新建广播公告' }) %>
 <body>
 <div class="layout">
 <%- include('partials/sidebar', { active: 'announcements', stats: stats, admin: admin }) %>
@@ -7,21 +7,21 @@
     <div class="topbar-left">
       <button class="topbar-menu" id="menuBtn" aria-label="菜单">☰</button>
       <span class="topbar-issue">BROADCAST EDITOR</span>
-      <span class="topbar-status"><span class="dot"></span><%= announcement ? '编辑现有公告' : '创建新公告' %></span>
+      <span class="topbar-status"><span class="dot"></span><%= announcement ? '编辑现有广播' : '创建新广播' %></span>
     </div>
   </header>
 
   <div class="content">
-    <a href="/admin/announcements" class="detail-back">← 返回公告列表</a>
-    <% if (typeof msg !== 'undefined' && msg) { %>
+    <a href="/admin/announcements" class="detail-back">← 返回广播列表</a>
+    <% if (msg) { %>
     <div class="detail-card" style="margin-bottom:1rem;font-size:.82rem;color:var(--text-sec)">
-      <%= ({ created: '公告已创建。', saved: '公告已保存。' })[msg] || msg %>
+      <%= ({ created: '广播已创建。', saved: '广播已保存。' })[msg] || msg %>
     </div>
     <% } %>
 
     <div class="member-admin-actions-grid">
       <section class="edit-card member-admin-inline-card">
-        <h3>公告编辑器</h3>
+        <h3>广播编辑器</h3>
         <form method="POST" action="/admin/announcements/save" class="member-form-stack">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <input type="hidden" name="id" value="<%= announcement ? announcement.id : '' %>">
@@ -41,6 +41,10 @@
             <label class="member-form-field"><span>CTA 链接</span><input type="text" name="cta_link" value="<%= announcement ? announcement.cta_link : '' %>" placeholder="/submit"></label>
           </div>
           <div class="edit-grid">
+            <label class="member-form-field"><span>署名名称</span><input type="text" name="signature_name" value="<%= announcement ? (announcement.signature_name || announcement.creator_display_name || announcement.creator_username || '') : (admin.display_name || admin.username || '') %>" placeholder="联合馆长 / 馆长室"></label>
+            <label class="member-form-field"><span>署名头衔</span><input type="text" name="signature_title" value="<%= announcement ? (announcement.signature_title || announcement.creator_title || '') : (admin.title || '') %>" placeholder="Co-Curator / 联合馆长"></label>
+          </div>
+          <div class="edit-grid">
             <label class="member-form-field"><span>开始时间</span><input type="datetime-local" name="start_at" value="<%= announcement && announcement.start_at ? String(announcement.start_at).replace(' ','T').slice(0,16) : '' %>"></label>
             <label class="member-form-field"><span>结束时间</span><input type="datetime-local" name="end_at" value="<%= announcement && announcement.end_at ? String(announcement.end_at).replace(' ','T').slice(0,16) : '' %>"></label>
           </div>
@@ -52,12 +56,12 @@
             <label class="edit-check"><input type="checkbox" name="show_on_dashboard" value="1" <%= announcement && announcement.show_on_dashboard ? 'checked' : '' %>> 工作台</label>
             <label class="edit-check"><input type="checkbox" name="show_on_article" value="1" <%= announcement && announcement.show_on_article ? 'checked' : '' %>> 文章页</label>
           </div>
-          <button type="submit" class="btn-save">保存公告</button>
+          <button type="submit" class="btn-save">保存广播</button>
         </form>
         <% if (announcement) { %>
-        <form method="POST" action="/admin/announcements/<%= announcement.id %>/delete" style="margin-top:1rem" onsubmit="return confirm('确认停用这条公告？')">
+        <form method="POST" action="/admin/announcements/<%= announcement.id %>/delete" style="margin-top:1rem" onsubmit="return confirm('确认停用这条广播？')">
           <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-          <button type="submit" class="act-btn danger">停用公告</button>
+          <button type="submit" class="act-btn danger">停用广播</button>
         </form>
         <% } %>
       </section>
@@ -69,12 +73,13 @@
             <span><%= announcement ? announcement.type : 'editorial' %></span>
             <span><%= announcement ? ('BROADCAST ' + String(announcement.id).padStart(3, '0')) : 'BROADCAST 000' %></span>
           </div>
-          <h3><%= announcement ? announcement.title : '这里会显示公告标题' %></h3>
-          <p class="announcement-preview-card__subtitle"><%= announcement && announcement.subtitle ? announcement.subtitle : '副标题会显示在这里，用于播报机首屏的第二层信息。' %></p>
-          <div class="announcement-preview-card__body"><%= announcement ? announcement.content : '正文建议控制在两到四句内，保持首屏阅读节奏。' %></div>
-          <div class="announcement-preview-card__meta">
-            <span>audience/<%= announcement ? announcement.audience : 'all' %></span>
-            <span>priority/<%= announcement ? announcement.priority : 0 %></span>
+          <h3><%= announcement ? announcement.title : '这里会显示广播标题' %></h3>
+          <p class="announcement-preview-card__subtitle"><%= announcement && announcement.subtitle ? announcement.subtitle : '副标题会显示在这里，用于广播页与首页轮播的第二层信息。' %></p>
+          <div class="announcement-preview-card__body"><%= announcement ? announcement.content : '正文建议控制在两到四句内，保持广播信息的仪式感与可读性。' %></div>
+          <div class="curator-signature curator-signature--preview">
+            <span class="curator-signature__label">署名</span>
+            <strong><%= announcement ? (announcement.signature_name || announcement.creator_display_name || announcement.creator_username || '馆务署名') : (admin.display_name || admin.username || '馆务署名') %></strong>
+            <span><%= announcement ? (announcement.signature_title || announcement.creator_title || '') : (admin.title || '') %></span>
           </div>
         </article>
       </section>
@@ -88,4 +93,3 @@ if(menuBtn){menuBtn.onclick=function(){sidebar.classList.add('open');if(mobOv)mo
 if(mobOv){mobOv.onclick=function(){sidebar.classList.remove('open');mobOv.classList.remove('open')}}
 </script>
 </body></html>
-

@@ -7,7 +7,7 @@
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
     <h1>负结果通讯</h1>
-    <p>Editorial Desk</p>
+    <p>Curatorial Desk</p>
   </div>
   <ul class="sidebar-nav">
     <li class="sidebar-section">Overview</li>
@@ -22,7 +22,7 @@
 
     <li class="sidebar-section">Publication</li>
     <li><a href="/admin/issues" class="<%= _active === 'issues' ? 'active' : '' %>"><span class="nav-icon">▦</span>期号管理</a></li>
-    <li><a href="/admin/announcements" class="<%= _active === 'announcements' ? 'active' : '' %>"><span class="nav-icon">✦</span>播报机公告</a></li>
+    <li><a href="/admin/announcements" class="<%= _active === 'announcements' ? 'active' : '' %>"><span class="nav-icon">✦</span>广播公告</a></li>
 
     <li class="sidebar-section">Members</li>
     <li><a href="/admin/users" class="<%= _active === 'users' ? 'active' : '' %>"><span class="nav-icon">⌘</span>会员管理</a></li>
@@ -34,14 +34,14 @@
 
     <li class="sidebar-section">System</li>
     <% if (_admin.role === 'admin') { %>
-    <li><a href="/admin/admins" class="<%= _active === 'admins' ? 'active' : '' %>"><span class="nav-icon">⚙</span>管理员</a></li>
+    <li><a href="/admin/admins" class="<%= _active === 'admins' ? 'active' : '' %>"><span class="nav-icon">⚙</span>馆务成员</a></li>
     <% } %>
     <li><a href="/admin/password" class="<%= _active === 'password' ? 'active' : '' %>"><span class="nav-icon">⌘</span>修改密码</a></li>
     <li><a href="/" target="_blank" rel="noreferrer"><span class="nav-icon">↗</span>查看前台</a></li>
     <li><a href="/admin/logout"><span class="nav-icon">⎋</span>退出登录</a></li>
   </ul>
   <div class="sidebar-footer">
-    <span>当前账号：<%= _admin.username || '' %></span>
-    <% if (_admin.role) { %><span style="margin-left:.5rem;opacity:.5">(<%= _admin.role %>)</span><% } %>
+    <span>当前账号：<%= _admin.display_name || _admin.username || '' %></span>
+    <% if (_admin.role) { %><span style="margin-left:.5rem;opacity:.7">(<%= getAdminRoleLabel(_admin.role) %>)</span><% } %>
   </div>
 </aside>

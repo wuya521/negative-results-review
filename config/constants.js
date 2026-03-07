@@ -26,9 +26,17 @@ const RISK_LABELS = {
 };
 
 const ROLES = {
-  admin: '管理员',
-  editor: '编辑',
+  admin: '创馆人',
+  co_curator: '联合馆长',
+  editor: '编辑策展',
   reviewer: '审稿',
+};
+
+const ARCHIVE_GRADE_LABELS = {
+  standard: '正式馆藏',
+  featured: '策展精选',
+  dossier: '专题卷宗',
+  honor: '荣誉入藏',
 };
 
 const PER_PAGE_PUBLIC = 10;
@@ -47,6 +55,7 @@ module.exports = {
   STATUS_LABELS,
   RISK_LABELS,
   ROLES,
+  ARCHIVE_GRADE_LABELS,
   PER_PAGE_PUBLIC,
   PER_PAGE_ADMIN,
   estimateReadingTime,

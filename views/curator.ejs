@@ -1,0 +1,97 @@
+﻿<%- include('partials/head', { pageTitle: `${curator.display_name} / 馆员人物页`, pageDesc: curator.bio || `${curator.display_name} 的馆员档案与策展记录。` }) %>
+<%- include('partials/nav') %>
+
+<header class="page-header page-header--compact curator-profile-hero">
+  <div class="container narrow-container">
+    <p class="page-header__label">Curator Profile / 馆员人物页</p>
+    <div class="curator-profile-hero__badge-row">
+      <span class="curator-card__badge"><%= curator.badge_label %></span>
+      <span class="curator-card__role"><%= curator.public_title %></span>
+    </div>
+    <h1 class="page-header__title"><%= curator.display_name %></h1>
+    <% if (curator.bio) { %><p class="page-header__sub"><%= curator.bio %></p><% } %>
+    <div class="curator-profile-stats">
+      <div><strong><%= curator.curated_count || 0 %></strong><span>已存档馆藏</span></div>
+      <div><strong><%= curator.issue_count || 0 %></strong><span>参与策展期号</span></div>
+      <div><strong><%= curator.broadcast_count || 0 %></strong><span>已发布广播</span></div>
+    </div>
+  </div>
+</header>
+
+<main class="section">
+  <div class="container narrow-container curator-profile-shell">
+    <section class="about-block fade-in">
+      <div class="section-header section-header--compact">
+        <h2 class="section-title">近期入藏</h2>
+        <span class="section-en">RECENT ARCHIVES</span>
+      </div>
+      <% if (curatedArticles.length) { %>
+      <div class="curator-profile-articles">
+        <% curatedArticles.forEach(function(item) { %>
+        <a href="/article/<%= item.id %>" class="curator-profile-article">
+          <span class="curator-profile-article__section"><%= item.section %></span>
+          <h3><%= item.display_title || item.title %></h3>
+          <% if (item.deck || item.excerpt) { %><p><%= item.deck || item.excerpt %></p><% } %>
+          <div class="curator-profile-article__meta">
+            <span><%= item.issue_label || '未归入专题' %></span>
+            <span><%= item.published_at ? String(item.published_at).substring(0, 10) : String(item.created_at).substring(0, 10) %></span>
+          </div>
+        </a>
+        <% }) %>
+      </div>
+      <% } else { %>
+      <p class="comments-empty">该馆员暂未公开策展馆藏。</p>
+      <% } %>
+    </section>
+
+    <section class="about-block fade-in">
+      <div class="section-header section-header--compact">
+        <h2 class="section-title">参与策展期号</h2>
+        <span class="section-en">SPECIAL ISSUES</span>
+      </div>
+      <% if (issues.length) { %>
+      <div class="curator-issue-list">
+        <% issues.forEach(function(issue) { %>
+        <article class="curator-issue-card">
+          <div class="curator-issue-card__meta">
+            <span><%= issue.issue_code %></span>
+            <span><%= issue.involvement === 'lead' ? '主策展' : '联合策展' %></span>
+          </div>
+          <h3><%= issue.issue_label %></h3>
+          <p><%= issue.theme_title || '未填写主题标题' %></p>
+          <% if (issue.curator_statement) { %><blockquote><%= issue.curator_statement %></blockquote><% } %>
+        </article>
+        <% }) %>
+      </div>
+      <% } else { %>
+      <p class="comments-empty">暂未公开参与策展的期号。</p>
+      <% } %>
+    </section>
+
+    <section class="about-block fade-in">
+      <div class="section-header section-header--compact">
+        <h2 class="section-title">馆务广播</h2>
+        <span class="section-en">BROADCASTS</span>
+      </div>
+      <% if (broadcasts.length) { %>
+      <div class="curator-broadcast-list">
+        <% broadcasts.forEach(function(item) { %>
+        <a href="/broadcasts/<%= item.id %>" class="curator-broadcast-item">
+          <strong><%= item.title %></strong>
+          <% if (item.subtitle) { %><p><%= item.subtitle %></p><% } %>
+          <div class="curator-broadcast-item__meta">
+            <span><%= item.signature_name %></span>
+            <% if (item.signature_title) { %><span><%= item.signature_title %></span><% } %>
+            <span><%= item.created_at ? String(item.created_at).substring(0, 10) : '' %></span>
+          </div>
+        </a>
+        <% }) %>
+      </div>
+      <% } else { %>
+      <p class="comments-empty">暂未公开广播记录。</p>
+      <% } %>
+    </section>
+  </div>
+</main>
+
+<%- include('partials/footer') %>

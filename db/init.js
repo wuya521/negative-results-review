@@ -19,6 +19,12 @@ async function initDB() {
       username      VARCHAR(50) UNIQUE NOT NULL,
       password_hash VARCHAR(255) NOT NULL,
       role          VARCHAR(20) NOT NULL DEFAULT 'admin',
+      display_name  VARCHAR(80) DEFAULT '',
+      title         VARCHAR(120) DEFAULT '',
+      badge_label   VARCHAR(40) DEFAULT '',
+      bio           VARCHAR(500) DEFAULT '',
+      public_slug   VARCHAR(80) DEFAULT '',
+      is_public     TINYINT(1) NOT NULL DEFAULT 1,
       created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
@@ -47,6 +53,9 @@ async function initDB() {
       theme_title VARCHAR(255) DEFAULT '',
       theme_note  TEXT,
       cover_label VARCHAR(120) DEFAULT '',
+      lead_admin_id INT,
+      co_admin_id INT,
+      curator_statement TEXT,
       is_current  TINYINT(1) NOT NULL DEFAULT 0,
       is_active   TINYINT(1) NOT NULL DEFAULT 1,
       created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -74,6 +83,12 @@ async function initDB() {
       layout_style        VARCHAR(50) NOT NULL DEFAULT 'journal',
       publication_label   VARCHAR(120) DEFAULT '',
       pdf_enabled         TINYINT(1) NOT NULL DEFAULT 1,
+      archive_code        VARCHAR(40) DEFAULT '',
+      archive_grade       VARCHAR(20) NOT NULL DEFAULT 'standard',
+      curator_note        TEXT,
+      curator_admin_id    INT,
+      assigned_admin_id   INT,
+      internal_note       TEXT,
       status              VARCHAR(20) NOT NULL DEFAULT 'pending',
       risk_level          VARCHAR(10) NOT NULL DEFAULT 'low',
       desensitized_status VARCHAR(20) NOT NULL DEFAULT 'unchecked',
@@ -141,6 +156,8 @@ async function initDB() {
       show_on_article   TINYINT(1) NOT NULL DEFAULT 0,
       impression_count  INT NOT NULL DEFAULT 0,
       click_count       INT NOT NULL DEFAULT 0,
+      signature_name    VARCHAR(80) DEFAULT '',
+      signature_title   VARCHAR(120) DEFAULT '',
       created_by        INT,
       created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -217,10 +234,19 @@ async function initDB() {
 
   const migrations = [
     "ALTER TABLE admins ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin' AFTER password_hash",
+    "ALTER TABLE admins ADD COLUMN display_name VARCHAR(80) DEFAULT '' AFTER role",
+    "ALTER TABLE admins ADD COLUMN title VARCHAR(120) DEFAULT '' AFTER display_name",
+    "ALTER TABLE admins ADD COLUMN badge_label VARCHAR(40) DEFAULT '' AFTER title",
+    "ALTER TABLE admins ADD COLUMN bio VARCHAR(500) DEFAULT '' AFTER badge_label",
+    "ALTER TABLE admins ADD COLUMN public_slug VARCHAR(80) DEFAULT '' AFTER bio",
+    "ALTER TABLE admins ADD COLUMN is_public TINYINT(1) NOT NULL DEFAULT 1 AFTER public_slug",
     "ALTER TABLE users ADD COLUMN member_tier VARCHAR(20) NOT NULL DEFAULT 'member' AFTER display_name",
     "ALTER TABLE users ADD COLUMN bio VARCHAR(500) DEFAULT '' AFTER member_tier",
     "ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER bio",
     "ALTER TABLE users ADD COLUMN last_login_at DATETIME AFTER created_at",
+    "ALTER TABLE issues ADD COLUMN lead_admin_id INT AFTER cover_label",
+    "ALTER TABLE issues ADD COLUMN co_admin_id INT AFTER lead_admin_id",
+    "ALTER TABLE issues ADD COLUMN curator_statement TEXT AFTER co_admin_id",
     "ALTER TABLE manuscripts ADD COLUMN user_id INT AFTER pen_name",
     "ALTER TABLE manuscripts ADD COLUMN is_pinned TINYINT(1) NOT NULL DEFAULT 0 AFTER is_featured",
     "ALTER TABLE manuscripts ADD COLUMN is_editor_pick TINYINT(1) NOT NULL DEFAULT 0 AFTER is_pinned",
@@ -235,7 +261,15 @@ async function initDB() {
     "ALTER TABLE manuscripts ADD COLUMN published_content MEDIUMTEXT AFTER optimized_content",
     "ALTER TABLE manuscripts ADD COLUMN layout_style VARCHAR(50) NOT NULL DEFAULT 'journal' AFTER published_content",
     "ALTER TABLE manuscripts ADD COLUMN publication_label VARCHAR(120) DEFAULT '' AFTER layout_style",
-    "ALTER TABLE manuscripts ADD COLUMN pdf_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER publication_label"
+    "ALTER TABLE manuscripts ADD COLUMN pdf_enabled TINYINT(1) NOT NULL DEFAULT 1 AFTER publication_label",
+    "ALTER TABLE manuscripts ADD COLUMN archive_code VARCHAR(40) DEFAULT '' AFTER pdf_enabled",
+    "ALTER TABLE manuscripts ADD COLUMN archive_grade VARCHAR(20) NOT NULL DEFAULT 'standard' AFTER archive_code",
+    "ALTER TABLE manuscripts ADD COLUMN curator_note TEXT AFTER archive_grade",
+    "ALTER TABLE manuscripts ADD COLUMN curator_admin_id INT AFTER curator_note",
+    "ALTER TABLE manuscripts ADD COLUMN assigned_admin_id INT AFTER curator_admin_id",
+    "ALTER TABLE manuscripts ADD COLUMN internal_note TEXT AFTER assigned_admin_id",
+    "ALTER TABLE announcements ADD COLUMN signature_name VARCHAR(80) DEFAULT '' AFTER click_count",
+    "ALTER TABLE announcements ADD COLUMN signature_title VARCHAR(120) DEFAULT '' AFTER signature_name"
   ];
 
   for (const sql of migrations) {
@@ -249,7 +283,7 @@ async function initDB() {
   const [adminRows] = await pool.execute('SELECT id FROM admins LIMIT 1');
   if (adminRows.length === 0) {
     const hash = bcrypt.hashSync('admin2026', 10);
-    await pool.execute('INSERT INTO admins (username, password_hash, role) VALUES (?, ?, ?)', ['admin', hash, 'admin']);
+    await pool.execute('INSERT INTO admins (username, password_hash, role, display_name, title, badge_label, bio, public_slug, is_public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', ['admin', hash, 'admin', '???', 'Founding Curator / ???', 'FOUNDING CURATOR', '?????????????????', 'founding-curator', 1]);
     console.log('[DB] 初始化管理员已创建: admin / admin2026');
   }
 

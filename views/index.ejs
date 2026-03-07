@@ -1,5 +1,9 @@
 ﻿<%- include('partials/head', { pageTitle: '' }) %>
 <%- include('partials/nav') %>
+<%
+  const issueLeadName = currentIssue ? (currentIssue.lead_display_name || currentIssue.lead_username || '') : '';
+  const issueCoName = currentIssue ? (currentIssue.co_display_name || currentIssue.co_username || '') : '';
+%>
 
 <section class="hero hero--editorial hero--broadcast" id="hero">
   <div class="hero-content hero-content--broadcast">
@@ -22,9 +26,12 @@
               <h2 class="broadcast-slide__title"><%= item.title %></h2>
               <% if (item.subtitle) { %><p class="broadcast-slide__subtitle"><%= item.subtitle %></p><% } %>
               <div class="broadcast-slide__body"><%= item.content %></div>
+              <% if (item.signature_name || item.signature_title) { %>
+              <div class="broadcast-slide__signature"><strong><%= item.signature_name %></strong><span><%= item.signature_title %></span></div>
+              <% } %>
               <div class="broadcast-slide__actions">
                 <% if (item.cta_link) { %>
-                <a href="/broadcasts/<%= item.id %>/go" class="hero-cta"> <%= item.cta_text || '查看广播' %> </a>
+                <a href="/broadcasts/<%= item.id %>/go" class="hero-cta"><%= item.cta_text || '查看广播' %></a>
                 <% } else { %>
                 <a href="/broadcasts/<%= item.id %>" class="hero-cta">查看广播</a>
                 <% } %>
@@ -89,11 +96,54 @@
         <span class="home-side-note__label">CURRENT ISSUE</span>
         <h3><%= currentIssue ? currentIssue.issue_label : 'ISSUE 001' %></h3>
         <p><%= currentIssue ? (currentIssue.theme_title || '创刊号主题筹备中') : '创刊号主题筹备中' %></p>
+        <% if (issueLeadName || issueCoName) { %>
+        <div class="issue-curator-meta">
+          <% if (issueLeadName) { %>
+          <span>主策展：<% if (currentIssue.lead_public_slug) { %><a href="/curators/<%= currentIssue.lead_public_slug %>"><%= issueLeadName %></a><% } else { %><%= issueLeadName %><% } %></span>
+          <% } %>
+          <% if (issueCoName) { %>
+          <span>联合策展：<% if (currentIssue.co_public_slug) { %><a href="/curators/<%= currentIssue.co_public_slug %>"><%= issueCoName %></a><% } else { %><%= issueCoName %><% } %></span>
+          <% } %>
+        </div>
+        <% } %>
         <a href="/broadcasts" class="home-side-note__link">查看广播馆</a>
       </div>
     </aside>
   </div>
 </section>
+
+<% if (curatorBoard && curatorBoard.length) { %>
+<section class="section" id="board">
+  <div class="container">
+    <div class="section-header fade-in">
+      <span class="section-number">§ 02A</span>
+      <h2 class="section-title">馆务团队</h2>
+      <span class="section-en">CURATORIAL BOARD</span>
+    </div>
+    <div class="curator-board fade-in">
+      <% curatorBoard.forEach(function(curator) { %>
+        <% if (curator.public_slug) { %>
+        <a href="/curators/<%= curator.public_slug %>" class="curator-card curator-card--link">
+        <% } else { %>
+        <article class="curator-card">
+        <% } %>
+          <div class="curator-card__head">
+            <span class="curator-card__badge"><%= curator.badge_label %></span>
+            <span class="curator-card__role"><%= curator.public_title %></span>
+          </div>
+          <h3 class="curator-card__name"><%= curator.display_name %></h3>
+          <% if (curator.bio) { %><p class="curator-card__bio"><%= curator.bio %></p><% } %>
+          <div class="curator-card__meta"><span>@<%= curator.username %></span><span><%= curator.public_slug ? '查看人物页' : '馆务成员' %></span></div>
+        <% if (curator.public_slug) { %>
+        </a>
+        <% } else { %>
+        </article>
+        <% } %>
+      <% }) %>
+    </div>
+  </div>
+</section>
+<% } %>
 
 <section class="section section--alt" id="featured">
   <div class="container home-featured-layout">
@@ -107,6 +157,19 @@
         <p class="featured-label"><%= currentIssue ? `${currentIssue.issue_label} · ${currentIssue.season || ''} ${currentIssue.year}` : 'Vol. 1 · No. 1' %></p>
         <h3 class="featured-title"><%= currentIssue ? currentIssue.theme_title : '当 p 值停在 0.05 的门外' %></h3>
         <p class="featured-desc"><%= currentIssue ? currentIssue.theme_note : '统计显著性的边界焦虑，往往不是技术问题，而是叙述权问题。' %></p>
+        <% if (currentIssue && currentIssue.curator_statement) { %>
+        <p class="featured-box__statement">“<%= currentIssue.curator_statement %>”</p>
+        <% } %>
+        <% if (issueLeadName || issueCoName) { %>
+        <div class="featured-box__curators">
+          <% if (issueLeadName) { %>
+          <span>主策展：<% if (currentIssue.lead_public_slug) { %><a href="/curators/<%= currentIssue.lead_public_slug %>"><%= issueLeadName %></a><% } else { %><%= issueLeadName %><% } %></span>
+          <% } %>
+          <% if (issueCoName) { %>
+          <span>联合策展：<% if (currentIssue.co_public_slug) { %><a href="/curators/<%= currentIssue.co_public_slug %>"><%= issueCoName %></a><% } else { %><%= issueCoName %><% } %></span>
+          <% } %>
+        </div>
+        <% } %>
         <% if (featured.length > 0) { %>
         <div class="home-featured-links">
           <% featured.forEach(function(a) { %>
